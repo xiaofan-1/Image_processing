@@ -225,7 +225,7 @@ always @(posedge ACLK or negedge ARESETN) begin
 end
    
 assign M_AXI_AWID         = 4'b0000;
-assign M_AXI_AWADDR       = reg_wr_adrs[31:0];
+assign M_AXI_AWADDR       = reg_wr_adrs[29:0];
 assign M_AXI_AWLEN[7:0]   = reg_w_len[7:0];
 assign M_AXI_AWSIZE[2:0]  = 3'b101;
 assign M_AXI_AWBURST[1:0] = 2'b01;
