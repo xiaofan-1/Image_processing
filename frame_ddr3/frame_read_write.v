@@ -46,36 +46,72 @@ module frame_read_write #(
 	input	wire                            write_en			, // data write module write
 	input	wire	[WRITE_DATA_BITS - 1:0] write_data		      // write data
 );
-wire[15:0]                           wrusedw;                    // write used words
-wire[15:0]                           rdusedw;                    // read used words
+wire[7:0]                            wrusedw;                    // write used words
+wire[7:0]                            rdusedw;                    // read used words
 wire                                 read_fifo_aclr;             // fifo Asynchronous clear
 wire                                 write_fifo_aclr;            // fifo Asynchronous clear
 //instantiate an asynchronous FIFO 
-afifo_16i_64o_512 write_buf(
-    .wr_clk(write_clk),
-    .wr_rst(write_fifo_aclr),
-    .wr_en(write_en),
-    .wr_data(write_data),
-    .wr_full(),
-    .wr_water_level(),
-    .almost_full(),
-    .rd_clk(mem_clk),
-    .rd_rst(write_fifo_aclr),
-    .rd_en(wr_burst_data_req),
-    .rd_data(wr_burst_data),
-    .rd_empty(),
-    .rd_water_level(rdusedw[8:0]),
-    .almost_empty());
-frame_fifo_write
-#
-(
+// afifo_16i_64o_512 write_buf(
+//     .wr_clk(write_clk),
+//     .wr_rst(write_fifo_aclr),
+//     .wr_en(write_en),
+//     .wr_data(write_data),
+//     .wr_full(),
+//     .wr_water_level(),
+//     .almost_full(),
+//     .rd_clk(mem_clk),
+//     .rd_rst(write_fifo_aclr),
+//     .rd_en(wr_burst_data_req),
+//     .rd_data(wr_burst_data),
+//     .rd_empty(),
+//     .rd_water_level(rdusedw[8:0]),
+//     .almost_empty());
+
+// 简单拼接：每2个16bit拼成1个32bit
+reg [31:0] pack_data;
+reg        pack_flag;
+wire       pack_wr_en;
+
+always @(posedge write_clk) begin
+    if(write_fifo_aclr) begin
+        pack_flag <= 1'b0;
+		pack_data <= 32'b0;
+    end
+    else if(write_en) begin
+        pack_flag <= ~pack_flag;
+        if(pack_flag == 1'b0)
+            pack_data[15:0]  <= write_data;  // 先存低16位
+        else
+            pack_data[31:16] <= write_data;  // 再存高16位
+    end
+end
+
+assign pack_wr_en = write_en & pack_flag;  // 每2个数据写一次FIFO
+
+
+wr_fifo wr_fifo_inst (
+  .rst(write_fifo_aclr),                      // input wire rst
+  .wr_clk(write_clk),                // input wire wr_clk
+  .rd_clk(mem_clk),                // input wire rd_clk
+  .din(pack_data),                      // input wire [31 : 0] din
+  .wr_en(pack_wr_en),                  // input wire wr_en
+  .rd_en(wr_burst_data_req),                  // input wire rd_en
+  .dout(wr_burst_data),                    // output wire [255 : 0] dout
+  .full(),                    // output wire full
+  .almost_full(),      // output wire almost_full
+  .empty(),                  // output wire empty
+  .almost_empty(),    // output wire almost_empty
+  .rd_data_count(rdusedw),  // output wire [7 : 0] rd_data_count
+  .wr_data_count()  // output wire [10 : 0] wr_data_count
+);
+
+
+frame_fifo_write #(
 	.MEM_DATA_BITS              (MEM_DATA_BITS            ),
 	.ADDR_BITS                  (ADDR_BITS                ),
 	.BURST_BITS                 (BURST_BITS               ),
 	.BURST_SIZE                 (BURST_SIZE               )
-) 
-frame_fifo_write_m0              
-(  
+) frame_fifo_write_inst (
 	.rst                        (rst                      ),
 	.mem_clk                    (mem_clk                  ),
 	.wr_burst_req               (wr_burst_req             ),
@@ -93,39 +129,64 @@ frame_fifo_write_m0
 	.write_addr_index           (write_addr_index         ),    
 	.write_len                  (write_len                ),
 	.fifo_aclr                  (write_fifo_aclr          ),
-	.rdusedw                    (rdusedw                  ) 
-	
+	.rdusedw                    ({8'b0,rdusedw}           )
 );
 
 //instantiate an asynchronous FIFO
 
-afifo_64i_16o_128 read_buf (
-    .wr_clk(mem_clk),
-    .wr_rst(read_fifo_aclr),
-    .wr_en(rd_burst_data_valid),
-    .wr_data(rd_burst_data),
-    .wr_full(),
-    .wr_water_level(wrusedw[8:0]),
-    .almost_full(),
-    .rd_clk(read_clk),
-    .rd_rst(read_fifo_aclr),
-    .rd_en(read_en),
-    .rd_data(read_data),
-    .rd_empty(),
-    .rd_water_level(),
-    .almost_empty());
+// afifo_64i_16o_128 read_buf (
+//     .wr_clk(mem_clk),
+//     .wr_rst(read_fifo_aclr),
+//     .wr_en(rd_burst_data_valid),
+//     .wr_data(rd_burst_data),
+//     .wr_full(),
+//     .wr_water_level(wrusedw[8:0]),
+//     .almost_full(),
+//     .rd_clk(read_clk),
+//     .rd_rst(read_fifo_aclr),
+//     .rd_en(read_en),
+//     .rd_data(read_data),
+//     .rd_empty(),
+//     .rd_water_level(),
+//     .almost_empty());
 
-frame_fifo_read
-#
-(
+wire [31:0] fifo_dout;    // FIFO出来32bit
+wire        fifo_rd_en;
+reg         sel;           // 选高16还是低16
+
+always @(posedge read_clk) begin
+    if(read_fifo_aclr)  
+		sel <= 0;
+    else if(read_en)    
+		sel <= ~sel;
+end
+
+assign read_data = sel ? fifo_dout[31:16] : fifo_dout[15:0];
+assign fifo_rd_en = read_en & ~sel;  // 每2次read_en才真正读一次FIFO
+
+rd_fifo rd_fifo_inst (
+  .rst(read_fifo_aclr),                      // input wire rst
+  .wr_clk(mem_clk),                // input wire wr_clk
+  .rd_clk(read_clk),                // input wire rd_clk
+  .din(rd_burst_data),                      // input wire [255 : 0] din
+  .wr_en(rd_burst_data_valid),                  // input wire wr_en
+  .rd_en(fifo_rd_en),                  // input wire rd_en
+  .dout(fifo_dout),                    // output wire [31 : 0] dout
+  .full(),                    // output wire full
+  .almost_full(),      // output wire almost_full
+  .empty(),                  // output wire empty
+  .almost_empty(),    // output wire almost_empty
+  .rd_data_count(),  // output wire [10 : 0] rd_data_count
+  .wr_data_count(wrusedw)  // output wire [7 : 0] wr_data_count
+);
+
+frame_fifo_read #(
 	.MEM_DATA_BITS              (MEM_DATA_BITS            ),
 	.ADDR_BITS                  (ADDR_BITS                ),
 	.BURST_BITS                 (BURST_BITS               ),
 	.FIFO_DEPTH                 (128                      ),
 	.BURST_SIZE                 (BURST_SIZE               )
-)
-frame_fifo_read_m0
-(
+) frame_fifo_read_inst (
 	.rst                        (rst                      ),
 	.mem_clk                    (mem_clk                  ),
 	.rd_burst_req               (rd_burst_req             ),   
@@ -143,7 +204,7 @@ frame_fifo_read_m0
 	.read_addr_index            (read_addr_index          ),    
 	.read_len                   (read_len                 ),
 	.fifo_aclr                  (read_fifo_aclr           ),
-	.wrusedw                    (wrusedw                  )
+	.wrusedw                    ({8'b0,wrusedw}           )
 );
 
 endmodule

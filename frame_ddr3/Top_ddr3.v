@@ -606,8 +606,8 @@ aq_axi_master_256 #(
     /*input   wire         			    */.MASTER_RST		( 1'b0                 ),
     
     /*input   wire         			    */.WR_START		    ( wr_burst_req         ),
-    /*input   wire [31:0]  			    */.WR_ADRS			( {wr_burst_addr,5'd0} ),
-    /*input   wire [31:0]  			    */.WR_LEN			( {wr_burst_len, 5'd0} ), 
+    /*input   wire [31:0]  			    */.WR_ADRS			( {2'b0,wr_burst_addr,5'd0} ),
+    /*input   wire [31:0]  			    */.WR_LEN			( {17'b0,wr_burst_len, 5'd0} ), 
     /*output  wire       				*/.WR_READY		    (                      ),
     /*output  wire       				*/.WR_FIFO_RE		( wr_burst_data_req    ),
     /*input   wire       				*/.WR_FIFO_EMPTY	( 1'b0                 ),
@@ -616,8 +616,8 @@ aq_axi_master_256 #(
     /*output  wire       				*/.WR_DONE			( wr_burst_finish      ),
 
     /*input   wire         			    */.RD_START		    ( rd_burst_req         ),
-    /*input   wire [31:0]  			    */.RD_ADRS			( {rd_burst_addr,5'd0} ),
-    /*input   wire [31:0]  			    */.RD_LEN			( {rd_burst_len, 5'd0} ), 
+    /*input   wire [31:0]  			    */.RD_ADRS			( {2'b0,rd_burst_addr,5'd0} ),
+    /*input   wire [31:0]  			    */.RD_LEN			( {17'b0,rd_burst_len, 5'd0} ), 
     /*output  wire         			    */.RD_READY		    (                      ),
     /*output  wire         			    */.RD_FIFO_WE		( rd_burst_data_valid  ),
     /*input   wire         			    */.RD_FIFO_FULL	    ( 1'b0                 ),
