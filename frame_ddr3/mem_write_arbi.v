@@ -1,7 +1,7 @@
 module mem_write_arbi #(
-	parameter MEM_DATA_BITS = 32,
-	parameter ADDR_BITS              = 23,
-    parameter BUSRT_BITS             = 10
+	parameter MEM_DATA_BITS 		 = 32	,
+	parameter ADDR_BITS 			 = 23	,
+    parameter BUSRT_BITS 			 = 10
 )(
 	input	wire							rst_n					,
 	input	wire							mem_clk					,
@@ -99,69 +99,69 @@ always@(*)
 begin
 	case(write_state)
 		IDLE:
-			write_state_next <= CH0_CHECK;
+			write_state_next = CH0_CHECK;
 		//
 		CH0_CHECK:
 			if(ch0_wr_burst_req  && ch0_wr_burst_len != {BUSRT_BITS{1'd0}})
-				write_state_next <= CH0_BEGIN;
+				write_state_next = CH0_BEGIN;
 			else
-				write_state_next <= CH1_CHECK;
+				write_state_next = CH1_CHECK;
 		CH0_BEGIN:
-			write_state_next <= CH0_WRITE;
+			write_state_next = CH0_WRITE;
 		CH0_WRITE:
 			if(wr_burst_finish_d1)
-				write_state_next <= CH0_END;
+				write_state_next = CH0_END;
 			else
-				write_state_next <= CH0_WRITE;
+				write_state_next = CH0_WRITE;
 		CH0_END:
-			write_state_next <= CH1_CHECK;
+			write_state_next = CH1_CHECK;
 		//	
 		CH1_CHECK:
 			if(ch1_wr_burst_req && ch1_wr_burst_len != {BUSRT_BITS{1'd0}})
-				write_state_next <= CH1_BEGIN;
+				write_state_next = CH1_BEGIN;
 			else
-				write_state_next <= CH2_CHECK;
+				write_state_next = CH2_CHECK;
 		CH1_BEGIN:
-			write_state_next <= CH1_WRITE;
+			write_state_next = CH1_WRITE;
 		CH1_WRITE:
 			if(wr_burst_finish_d1)
-				write_state_next <= CH1_END;
+				write_state_next = CH1_END;
 			else
-				write_state_next <= CH1_WRITE;
+				write_state_next = CH1_WRITE;
 		CH1_END:
-			write_state_next <= CH2_CHECK;
+			write_state_next = CH2_CHECK;
 		//	
 		CH2_CHECK:
 			if(ch2_wr_burst_req && ch2_wr_burst_len != {BUSRT_BITS{1'd0}})
-				write_state_next <= CH2_BEGIN;
+				write_state_next = CH2_BEGIN;
 			else
-				write_state_next <= CH3_CHECK;
+				write_state_next = CH3_CHECK;
 		CH2_BEGIN:
-			write_state_next <= CH2_WRITE;
+			write_state_next = CH2_WRITE;
 		CH2_WRITE:
 			if(wr_burst_finish_d1)
-				write_state_next <= CH2_END;
+				write_state_next = CH2_END;
 			else
-				write_state_next <= CH2_WRITE;
+				write_state_next = CH2_WRITE;
 		CH2_END:
-			write_state_next <= CH3_CHECK;
+			write_state_next = CH3_CHECK;
 		//	
 		CH3_CHECK:
 			if(ch3_wr_burst_req && ch3_wr_burst_len != {BUSRT_BITS{1'd0}})
-				write_state_next <= CH3_BEGIN;
+				write_state_next = CH3_BEGIN;
 			else
-				write_state_next <= CH0_CHECK;
+				write_state_next = CH0_CHECK;
 		CH3_BEGIN:
-			write_state_next <= CH3_WRITE;
+			write_state_next = CH3_WRITE;
 		CH3_WRITE:
 			if(wr_burst_finish_d1)
-				write_state_next <= CH3_END;
+				write_state_next = CH3_END;
 			else
-				write_state_next <= CH3_WRITE;
+				write_state_next = CH3_WRITE;
 		CH3_END:
-			write_state_next <= CH0_CHECK;
+			write_state_next = CH0_CHECK;
 		default:
-			write_state_next <= IDLE;
+			write_state_next = IDLE;
 	endcase
 end
 

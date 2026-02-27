@@ -1,7 +1,7 @@
 module mem_read_arbi #(
-	parameter MEM_DATA_BITS          = 32,
-	parameter ADDR_BITS              = 23,
-	parameter BUSRT_BITS             = 10
+	parameter MEM_DATA_BITS 		 = 32	,
+	parameter ADDR_BITS 			 = 23	,
+	parameter BUSRT_BITS 			 = 10
 )(
 	input 	wire							rst_n					,
 	input 	wire							mem_clk					,
