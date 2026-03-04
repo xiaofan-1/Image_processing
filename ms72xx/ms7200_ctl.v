@@ -33,7 +33,7 @@ module ms7200_ctl(
     input        [ 7:0] data_out ,
     input               byte_over 
 );
-    assign device_id = 8'hB2;
+    assign device_id = 8'h56;
 function [23:0] cmd_data;
 input [9:0] index;
     begin
