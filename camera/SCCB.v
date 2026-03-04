@@ -1,3 +1,5 @@
+`timescale 1ns / 1ps
+
 module SCCB (
     input  wire         clk         ,   //时钟
     input  wire         rst_n       ,   //复位
