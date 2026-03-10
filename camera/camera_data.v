@@ -10,7 +10,9 @@ module camera_data (
     output  reg     [15:0]  pixel_data          ,//像素数据rgb565
     output  wire            wf_wr_en            ,
     output  reg             sop                 ,// 帧头
-    output  reg             eop                  //帧尾在最后一行最后一个计数器结束
+    output  reg             eop                 ,//帧尾在最后一行最后一个计数器结束
+    output  reg             vs                  ,
+    output  reg             hs                  
 );								 
 //---------<参数定义>------------------------------------------------
     
@@ -118,11 +120,16 @@ always @(posedge clk or negedge rst_n)begin
         pixel_data_vld <= 'd0;
         sop <= 0;
         eop <= 0;
+        vs  <= 0;
+        hs  <= 0;
     end 
     else begin 
         pixel_data_vld <=  add_cnt_h && cnt_h[0];//行计数器为奇数时有效
         sop <= add_cnt_h && cnt_v==0 && cnt_h==1;
         eop <= end_cnt_v;
+        // 只有过了前十帧（pic_valid为高），才向后级输出对齐的vsync和href
+        vs  <= pic_valid ? vsync : 1'b0;
+        hs  <= pic_valid ? href  : 1'b0;
     end 
 end
 

@@ -11,7 +11,7 @@ module SCCB (
 );
 parameter DEV_ADDR = 8'h78; //器件地址写   器件地址：7'h3c
 
-parameter SYS_CLK  = 50_000_000;
+parameter SYS_CLK  = 27_000_000;
 parameter SCCB_CLK = 100_000   ;
 
 localparam delay = SYS_CLK / SCCB_CLK;
