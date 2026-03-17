@@ -29,14 +29,6 @@ module Top(
     // input   wire    [7:0]   r_in                , 
     // input   wire    [7:0]   g_in                , 
     // input   wire    [7:0]   b_in                , 
-    //hdmi_out      
-    // output  wire            pixclk_out          , 
-    // output  wire            vs_out              , 
-    // output  wire            hs_out              , 
-    // output  wire            de_out              ,
-    // output  wire    [7:0]   r_out               , 
-    // output  wire    [7:0]   g_out               , 
-    // output  wire    [7:0]   b_out               ,
     //hdmi_out 
     output	wire			tmds_clk_n             ,
     output	wire			tmds_clk_p             ,
@@ -47,6 +39,9 @@ module Top(
     //
     // output  wire            hdmi_scl            ,
     // inout   wire            hdmi_sda            ,
+    //
+    //key
+    input   wire    [4:0]   key                    ,
     //cam0
     input   wire            camera_clk_0           ,
     input   wire    [7:0]   camera_data_0          ,
@@ -66,7 +61,16 @@ module Top(
 
     output  reg             cam_led0                ,
     output  reg             cam_led1                ,
-    output  wire            cam_init_done        
+    //eth
+    output 	reg   			led			 ,
+    output	wire			phy_rstn	 ,
+    input	wire			rgmii_rxc	 ,
+    input	wire			rgmii_rx_ctl ,
+    input	wire	[3:0]  	rgmii_rxd	 ,	
+                         
+    output	wire			rgmii_txc	 ,
+    output	wire			rgmii_tx_ctl ,
+    output	wire	[3:0] 	rgmii_txd    
 );
 
 //===========================================================================
@@ -80,6 +84,7 @@ wire    locked_1;
 wire    mig_clk;
 wire    pixclk_out;
 wire    pixclkx5_out;
+wire    rgmii_clk;
 
 IBUF #(
    .IBUF_LOW_PWR("TRUE"),  // Low power (TRUE) vs. performance (FALSE) setting for referenced I/O standards
@@ -120,6 +125,22 @@ assign rst_n = locked_0 & locked_1 & sys_rst_n;
 //     /*output  wire    */.iic_scl   ( hdmi_scl  ),
 //     /*inout   wire    */.iic_sda   ( hdmi_sda  )
 // );
+
+//===========================================================================
+// key
+//===========================================================================
+wire [4:0] btn_flag;
+
+btn_deb_fix#(
+    .BTN_WIDTH ( 5'd5 ),
+    .BTN_DELAY ( 20'h7_ffff )
+) btn_deb_fix_inst(
+    /*input   wire                    */.clk           ( pixclk_out     )  , //
+    /*input   wire                    */.rst_n         ( rst_n       ) , //
+    /*input   wire    [BTN_WIDTH-1:0] */.btn_in        ( key         ) ,
+    /*output  reg     [BTN_WIDTH-1:0] */.btn_flag      ( btn_flag    ) , // 脉冲信号：按键按下瞬间产生一个时钟周期的高电平
+    /*output  reg     [BTN_WIDTH-1:0] */.btn_deb_fix   () // 电平信号：消抖后的按键状态
+);
 
 //===========================================================================
 // color_bar
@@ -222,8 +243,6 @@ localparam  TOTAL_V_PIXEL = V_COMS_DISP + 12'd504;
 wire            cam_init_done_0;
 wire            cam_init_done_1;
 
-assign cam_init_done = cam_init_done_0 & cam_init_done_1;
-
 wire            cam_vsync_0;
 wire            cam_href_0;
 wire            cam_write_en_0;
@@ -275,32 +294,6 @@ camera camera_inst1(
     /*output  wire            */.sop           ()  ,
     /*output  wire            */.eop           ()  
 );
-
-// ov5640_dri ov5640_dri_inst(
-//     /*input           */.clk              ( sys_clk_in          ) ,  //时钟
-//     /*input           */.rst_n            ( rst_n               ) ,  //复位信号,低电平有效
-//     //摄像头接口 
-//     /*input           */.cam_pclk         ( camera_clk_0        ) ,  //cmos 数据像素时钟
-//     /*input           */.cam_vsync        ( camera_vsync_0      ) ,  //cmos 场同步信号
-//     /*input           */.cam_href         ( camera_href_0       ) ,  //cmos 行同步信号
-//     /*input    [7:0]  */.cam_data         ( camera_data_0       ) ,  //cmos 数据  
-//     /*output          */.cam_rst_n        ( cam_rst_0           ) ,  //cmos 复位信号，低电平有效
-//     /*output          */.cam_pwdn         () ,  //cmos 电源休眠模式选择信号
-//     /*output          */.cam_scl          ( SCL_0               ) ,  //cmos SCCB_SCL线
-//     /*inout           */.cam_sda          ( SDA_0               ) ,  //cmos SCCB_SDA线
-//     //摄像头分辨率配置接口     
-//     /*input    [12:0] */.cmos_h_pixel     ( H_COMS_DISP         ) ,  //水平方向分辨率
-//     /*input    [12:0] */.cmos_v_pixel     ( V_COMS_DISP         ) ,  //垂直方向分辨率
-//     /*input    [12:0] */.total_h_pixel    ( TOTAL_H_PIXEL       ) ,  //水平总像素大小
-//     /*input    [12:0] */.total_v_pixel    ( TOTAL_V_PIXEL       ) ,  //垂直总像素大小
-//     /*input           */.capture_start    ( init_calib_complete & cam_init_done_0 ) ,  //图像采集开始信号
-//     /*output          */.cam_init_done    ( cam_init_done_0     ) ,  //摄像头初始化完成
-//     //用户接口
-//     /*output          */.cmos_frame_vsync ( cmos_frame_vsync    ) ,  //帧有效信号    
-//     /*output          */.cmos_frame_href  ( cmos_frame_href     ) ,  //行有效信号
-//     /*output          */.cmos_frame_valid ( ch0_write_en        ) ,  //数据有效使能信号
-//     /*output  [15:0]  */.cmos_frame_data  ( ch0_write_data      )    //有效数据  
-// );
 
 //camera clk signal
 reg  [27:0]     cam_cnt_0;
@@ -358,8 +351,15 @@ end
 //===========================================================================
 wire [15:0] ch0_write_data;
 wire        ch0_write_en;
+
 wire [15:0] ch1_write_data;
 wire        ch1_write_en;
+
+wire [15:0] ch2_write_data;
+wire        ch2_write_en;
+
+wire [15:0] ch3_write_data;
+wire        ch3_write_en;
 
 video_scale_near #(
     .PIX_DATA_WIDTH ( 16 )
@@ -410,9 +410,19 @@ wire                ch1_write_req_ack    ;
 wire    [1:0]       ch1_write_addr_index ;
 wire    [1:0]       ch1_read_addr_index  ;
 
+wire                ch2_write_req        ;
+wire                ch2_write_req_ack    ;
+wire    [1:0]       ch2_write_addr_index ;
+wire    [1:0]       ch2_read_addr_index  ;
+
+wire                ch3_write_req        ;
+wire                ch3_write_req_ack    ;
+wire    [1:0]       ch3_write_addr_index ;
+wire    [1:0]       ch3_read_addr_index  ;
+
 cmos_write_req_gen cmos_write_req_gen_inst0(
-    /*input   wire            */.rst             ( ~rst_n               ) ,
-    /*input   wire            */.pclk            ( camera_clk_0         ) ,
+    /*input   wire            */.clk             ( camera_clk_0         ) ,
+    /*input   wire            */.rst_n           ( rst_n                ) ,
     /*input   wire            */.cmos_vsync      ( cam_vsync_0          ) ,
     /*output  reg             */.write_req       ( ch0_write_req        ) ,
     /*input   wire            */.write_req_ack   ( ch0_write_req_ack    ) ,
@@ -421,8 +431,8 @@ cmos_write_req_gen cmos_write_req_gen_inst0(
 );
 
 cmos_write_req_gen cmos_write_req_gen_inst1(
-    /*input   wire            */.rst             ( ~rst_n               ) ,
-    /*input   wire            */.pclk            ( camera_clk_1         ) ,
+    /*input   wire            */.clk             ( camera_clk_1         ) ,
+    /*input   wire            */.rst_n           ( rst_n                ) ,
     /*input   wire            */.cmos_vsync      ( cam_vsync_1          ) ,
     /*output  reg             */.write_req       ( ch1_write_req        ) ,
     /*input   wire            */.write_req_ack   ( ch1_write_req_ack    ) ,
@@ -470,14 +480,38 @@ wire            ch1_read_req_ack;
 wire            ch1_read_en;
 wire    [15:0]  ch1_read_data;
 
+wire            ch2_read_req    ;
+wire            ch2_read_req_ack;
+wire            ch2_read_en;
+wire    [15:0]  ch2_read_data;
+
+wire            ch3_read_req    ;
+wire            ch3_read_req_ack;
+wire            ch3_read_en;
+wire    [15:0]  ch3_read_data;
+
+wire            hs_out;
+wire            vs_out;
+wire            de_out;
+
 wire            hs_out_0;
 wire            vs_out_0;
 wire            de_out_0;
 
+wire            hs_out_1;
+wire            vs_out_1;
+wire            de_out_1;
+
+wire            hs_out_2;
+wire            vs_out_2;
+wire            de_out_2;
+
+wire    [15:0]  vout_data;
 wire    [15:0]  vout_data_0;
 wire    [15:0]  vout_data_1;
+wire    [15:0]  vout_data_2;
 
-video_rect_read_data video_rect_read_data_inst0(
+video_rect_read_data video_rect_read_data_inst0 (
     /*input   wire                        */.video_clk          ( pixclk_out       ) , // Video pixel clock
     /*input   wire                        */.rst                ( ~rst_n           ) ,
     /*input   wire    [11:0]              */.video_left_offset  ( 12'd0            ) ,
@@ -500,7 +534,7 @@ video_rect_read_data video_rect_read_data_inst0(
     /*output  wire    [DATA_WIDTH - 1:0]  */.vout_data          ( vout_data_0      )   // video data
 );
 
-video_rect_read_data video_rect_read_data_inst(
+video_rect_read_data video_rect_read_data_inst1 (
     /*input   wire                        */.video_clk          ( pixclk_out       ) , // Video pixel clock
     /*input   wire                        */.rst                ( ~rst_n           ) ,
     /*input   wire    [11:0]              */.video_left_offset  ( 12'd640          ) ,
@@ -517,31 +551,203 @@ video_rect_read_data video_rect_read_data_inst(
     /*input   wire    [DATA_WIDTH - 1:0]  */.timing_data        ( vout_data_0      ) , 
     /*output  reg     [11:0]              */.x_cnt              () ,
     /*output  reg     [11:0]              */.y_cnt              () ,
-    /*output  wire                        */.hs                 ( hs_out           ) , // horizontal synchronization
-    /*output  wire                        */.vs                 ( vs_out           ) , // vertical synchronization
-    /*output  wire                        */.de                 ( de_out           ) , // video valid
+    /*output  wire                        */.hs                 ( hs_out_1         ) , // horizontal synchronization
+    /*output  wire                        */.vs                 ( vs_out_1         ) , // vertical synchronization
+    /*output  wire                        */.de                 ( de_out_1         ) , // video valid
     /*output  wire    [DATA_WIDTH - 1:0]  */.vout_data          ( vout_data_1      )   // video data
 );
+//===========================================================================
+// isp
+//===========================================================================
+wire [15:0] y_data;
+wire        y_hs_out;
+wire        y_vs_out;
+wire        y_de_out;
+wire [23:0] vout_data_1_ext;
 
-// assign r_out = {vout_data[15:11],3'b0};
-// assign g_out = {vout_data[10:5] ,2'b0};
-// assign b_out = {vout_data[4:0]  ,3'b0};
+assign vout_data_1_ext = {vout_data_1[15:11],3'b0,vout_data_1[10:5],2'b0,vout_data_1[4:0],3'b0};
 
-rgb2tmds rgb2tmds_inst(
-    .tmds_clk_p           ( tmds_clk_p           ),
-    .tmds_clk_n           ( tmds_clk_n           ),
-    .tmds_data_p          ( tmds_data_p          ),
-    .tmds_data_n          ( tmds_data_n          ),
+image_top image_top_inst(
+    /*input   wire            */.clk     ( pixclk_out      ) ,
+    /*input   wire            */.rst_n   ( rst_n           ) ,
 
-    .rstn                 ( rst_n             ),
+    /*input   wire            */.hsync_i ( hs_out_1        ) ,//行信号
+    /*input   wire            */.vsync_i ( vs_out_1        ) ,//场信号
+    /*input   wire            */.de_i    ( de_out_1        ) ,
+    /*input   wire    [23:0]  */.data_i  ( vout_data_1_ext ) ,//
 
-    .vid_pdata            ( {vout_data_1[15:11],3'b0,vout_data_1[10:5],2'b0,vout_data_1[4:0],3'b0}  ),
-    .vid_pvde             ( de_out               ),
-    .vid_phsync           ( hs_out               ),
-    .vid_pvsync           ( vs_out               ),
-    .pixelclk             ( pixclk_out              ),
+    /*output  wire            */.hsync_o ( y_hs_out        ) ,
+    /*output  wire            */.vsync_o ( y_vs_out        ) ,
+    /*output  wire            */.de_o    ( ch2_write_en    ) ,
+    /*output  wire    [15:0]  */.data_o  ( ch2_write_data  )     
 
-    .serialclk            ( pixclkx5_out            )
+    // /*output  wire            */.hsync_o ( hs_out    ) ,
+    // /*output  wire            */.vsync_o ( vs_out    ) ,
+    // /*output  wire            */.de_o    ( de_out    ) ,
+    // /*output  wire    [15:0]  */.data_o  ( y_data    )        
+);
+
+cmos_write_req_gen cmos_write_req_gen_inst_rdtest (
+    /*input   wire            */.clk             ( pixclk_out           ) ,
+    /*input   wire            */.rst_n           ( rst_n                ) ,
+    /*input   wire            */.cmos_vsync      ( y_vs_out             ) ,
+    /*output  reg             */.write_req       ( ch2_write_req        ) ,
+    /*input   wire            */.write_req_ack   ( ch2_write_req_ack    ) ,
+    /*output  reg     [1:0]   */.write_addr_index( ch2_write_addr_index ) ,
+    /*output  reg     [1:0]   */.read_addr_index ( ch2_read_addr_index  ) 
+);
+
+//===========================================================================
+// 帧差
+//===========================================================================
+wire       diff_hs_out;
+wire       diff_vs_out;
+wire       diff_de_out;
+wire [7:0] diff_data;
+wire [11:0] pixle_x;
+wire [11:0] pixle_y;
+
+diff_pic diff_pic_inst(
+    /*input    wire              */.sys_clk      ( pixclk_out           ) ,
+    /*input    wire              */.sys_rst_n    ( rst_n                ) ,
+
+    /*output   reg               */.read_req     ( ch2_read_req         ) , // Start reading a frame of data     
+    /*input    wire              */.read_req_ack ( ch2_read_req_ack     ) , // Read request response
+    /*output   wire              */.read_en      ( ch2_read_en          ) , // Read data enable
+    /*input    wire    [15:0]    */.read_data    ( ch2_read_data        ) , // Read data
+
+    /*input    wire              */.hsync_i      ( y_hs_out             ) ,
+	/*input    wire              */.vsync_i      ( y_vs_out             ) ,
+	/*input    wire              */.de_i         ( ch2_write_en         ) ,
+
+    /*output   reg    [11:0]     */.pixle_x      ( pixle_x              ) ,
+    /*output   reg    [11:0]     */.pixle_y      ( pixle_y              ) ,
+
+    /*input    wire    [7:0]     */.new_pic      ( ch2_write_data[15:8] ) ,
+    /*input    wire    [7:0]     */.last_pic     () ,
+    /*input    wire    [7:0]     */.DIFF_THR     ( 8'd65                ) ,
+    /*output   wire              */.hsync_o      ( diff_hs_out          ) ,
+    /*output   wire              */.vsync_o      ( diff_vs_out          ) ,
+	/*output   wire              */.de_o         ( diff_de_out          ) ,
+
+    // /*output   wire              */.hsync_o      ( hs_out          ) ,
+    // /*output   wire              */.vsync_o      ( vs_out          ) ,
+	// /*output   wire              */.de_o         ( de_out          ) ,
+ 
+    /*output   wire    [7:0]     */.diff_data    ( diff_data            ) 
+);
+
+
+wire [11:0] x_min_r;
+wire [11:0] x_max_r;
+wire [11:0] y_min_r;
+wire [11:0] y_max_r;
+
+wire [11:0] pixle_x_reg;
+wire [11:0] pixle_y_reg;
+
+wire        frame_hs_out;
+wire        frame_vs_out;
+wire        frame_de_out;
+wire [23:0] frame_data_out;
+
+image_frame image_frame_inst(
+    /*input   wire        */.clk           ( pixclk_out           ) ,
+    /*input   wire        */.rst_n         ( rst_n                ) ,
+    //输入                             
+    /*input   wire        */.hsync_i       ( diff_hs_out          ) ,//行信号
+    /*input   wire        */.vsync_i       ( diff_vs_out          ) ,//场信号
+    /*input   wire        */.de_i          ( diff_de_out          ) ,//图像有效信号
+    /*input   wire [7:0]  */.data_i        ( diff_data            ) ,//处理后的图像
+    /*input   wire [11:0] */.pixle_x       ( pixle_x              ) ,
+    /*input   wire [11:0] */.pixle_y       ( pixle_y              ) ,
+    /*input   wire [23:0] */.rgb_data      ( vout_data_1_ext      ) ,
+
+    /*input   wire [11:0] */.frame_top     ( 12'd5                ) ,
+    /*input   wire [11:0] */.frame_bottom  ( 12'd714              ) ,
+    /*input   wire [11:0] */.frame_left    ( 12'd5                ) ,
+    /*input   wire [11:0] */.frame_right   ( 12'd634              ) ,
+    //输出                             
+    /*output  reg  [11:0] */.x_min_r       ( x_min_r              ) ,
+    /*output  reg  [11:0] */.x_max_r       ( x_max_r              ) ,
+    /*output  reg  [11:0] */.y_min_r       ( y_min_r              ) ,
+    /*output  reg  [11:0] */.y_max_r       ( y_max_r              ) ,
+	/*output  reg  [11:0] */.pixle_x_reg   ( pixle_x_reg          ) ,
+	/*output  reg  [11:0] */.pixle_y_reg   ( pixle_y_reg          ) ,
+    /*output  wire        */.hsync_o       ( frame_hs_out         ) ,
+    /*output  wire        */.vsync_o       ( frame_vs_out         ) ,
+    /*output  wire        */.de_o          ( frame_de_out         ) ,
+    /*output  reg  [23:0] */.data_o        ( frame_data_out       ) 
+);
+
+wire [23:0] color_data;
+
+image_color image_color_inst(
+    /*input	wire            */.clk	           ( pixclk_out     ) ,
+    /*input	wire            */.rst_n           ( rst_n          ) ,
+            
+    /*input   wire            */.hsync_i       ( frame_hs_out   ) ,//行信号
+    /*input   wire            */.vsync_i       ( frame_vs_out   ) ,//场信号
+    /*input   wire            */.de_i          ( frame_de_out   ) ,
+    /*input   wire    [23:0]  */.data_i        ( frame_data_out ) ,//
+              
+    /*input   wire            */.key2_flag     ( btn_flag[1]    ) ,
+    /*input   wire            */.key3_flag     ( btn_flag[2]    ) ,
+    /*input   wire            */.key4_flag     ( btn_flag[3]    ) ,
+      
+    /*input   wire    [10:0]  */.pixel_x       ( pixle_x_reg    ) ,
+    /*input   wire    [10:0]  */.pixel_y       ( pixle_y_reg    ) ,
+    
+    /*input   wire    [11:0]  */.frame_top     ( 12'd5          ) ,
+    /*input   wire    [11:0]  */.frame_bottom  ( 12'd714        ) ,
+    /*input   wire    [11:0]  */.frame_left    ( 12'd5          ) ,
+    /*input   wire    [11:0]  */.frame_right   ( 12'd634        ) ,
+
+    /*input   wire    [11:0]  */.x_min_move    ( x_min_r        ) ,
+    /*input   wire    [11:0]  */.x_max_move    ( x_max_r        ) ,
+    /*input   wire    [11:0]  */.y_min_move    ( y_min_r        ) ,
+    /*input   wire    [11:0]  */.y_max_move    ( y_max_r        ) ,
+      
+    /*output  wire            */.hsync_o       ( hs_out         ) ,
+    /*output  wire            */.vsync_o       ( vs_out         ) ,
+    /*output  wire            */.de_o          ( de_out         ) ,
+    /*output  reg     [23:0]  */.data_o        ( color_data     ) 
+);
+
+wire [23:0] video_data;
+// assign video_data = {vout_data[15:11],3'b0,vout_data[10:5],2'b0,vout_data[4:0],3'b0};
+assign video_data = {3{diff_data}};
+
+rgb2tmds rgb2tmds_inst (
+    /*output  wire            */.tmds_clk_p  ( tmds_clk_p   ) ,
+    /*output  wire            */.tmds_clk_n  ( tmds_clk_n   ) ,
+    /*output  wire    [2:0]   */.tmds_data_p ( tmds_data_p  ) ,
+    /*output  wire    [2:0]   */.tmds_data_n ( tmds_data_n  ) ,
+
+    /*input   wire            */.rstn        ( rst_n        ) ,
+ 
+    // /*input   wire    [23:0]  */.vid_pdata   ( video_data   ) ,
+    // /*input   wire    [23:0]  */.vid_pdata   ( data_frame   ) ,
+    /*input   wire    [23:0]  */.vid_pdata   ( color_data   ) ,
+    /*input   wire            */.vid_pvde    ( de_out       ) ,
+    /*input   wire            */.vid_phsync  ( hs_out       ) ,
+    /*input   wire            */.vid_pvsync  ( vs_out       ) ,
+ 
+    /*input   wire            */.pixelclk    ( pixclk_out   ) ,
+    /*input   wire            */.serialclk   ( pixclkx5_out ) 
+);
+
+assign ch3_write_en = de_out;
+assign ch3_write_data = {color_data[23:19],color_data[15:10],color_data[7:3]};
+
+cmos_write_req_gen cmos_write_req_gen_inst3(
+    /*input   wire            */.clk             ( pixclk_out           ) ,
+    /*input   wire            */.rst_n           ( rst_n                ) ,
+    /*input   wire            */.cmos_vsync      ( vs_out               ) ,
+    /*output  reg             */.write_req       ( ch3_write_req        ) ,
+    /*input   wire            */.write_req_ack   ( ch3_write_req_ack    ) ,
+    /*output  reg     [1:0]   */.write_addr_index( ch3_write_addr_index ) ,
+    /*output  reg     [1:0]   */.read_addr_index ( ch3_read_addr_index  ) 
 );
 
 //===========================================================================
@@ -554,8 +760,10 @@ Top_ddr3 #(
     .READ_DATA_BITS         ( 16   ) , //external memory user interface read data width
     .WRITE_DATA_BITS        ( 16   ) , //external memory user interface write data width
     .BURST_SIZE             ( 16   ) , //external memory user interface burst size
-    .H_PIXEL                ( 1280 ) , //horizontal pixel
-    .V_PIXEL                ( 720  )   //vertical pixel
+    .FRAME_SIZE0            ( 640  * 720 ) , // ch0 frame size
+    .FRAME_SIZE1            ( 640  * 720 ) , // ch1 frame size 
+    .FRAME_SIZE2            ( 1280 * 720 ) , // ch2 frame size
+    .FRAME_SIZE3            ( 1280 * 720 )   // ch3 frame size
 ) Top_ddr3_inst (
     /*input   wire            */.clk_200M             ( mig_clk ) ,
     /*input   wire            */.rst_n                ( rst_n   ) ,
@@ -607,35 +815,91 @@ Top_ddr3 #(
     /*input   wire            */.ch1_read_en          ( ch1_read_en          ) ,
     /*output  wire    [15:0]  */.ch1_read_data        ( ch1_read_data        ) ,
     /*//channel 2*/
-    /*input   wire            */.ch2_write_clk        () ,
-    /*input   wire            */.ch2_write_req        () ,
-    /*output  wire            */.ch2_write_req_ack    () ,
+    /*input   wire            */.ch2_write_clk        ( pixclk_out           ) ,
+    /*input   wire            */.ch2_write_req        ( ch2_write_req        ) ,
+    /*output  wire            */.ch2_write_req_ack    ( ch2_write_req_ack    ) ,
     /*output  wire            */.ch2_write_finish     () ,
-    /*input   wire    [1:0]   */.ch2_write_addr_index () ,
-    /*input   wire            */.ch2_write_en         () ,
-    /*input   wire    [15:0]  */.ch2_write_data       () ,
-    /*input   wire            */.ch2_read_clk         () ,
-    /*input   wire            */.ch2_read_req         () ,
-    /*output  wire            */.ch2_read_req_ack     () ,
+    /*input   wire    [1:0]   */.ch2_write_addr_index ( ch2_write_addr_index ) ,
+    /*input   wire            */.ch2_write_en         ( ch2_write_en         ) ,
+    /*input   wire    [15:0]  */.ch2_write_data       ( ch2_write_data       ) ,
+    /*input   wire            */.ch2_read_clk         ( pixclk_out           ) ,
+    /*input   wire            */.ch2_read_req         ( ch2_read_req         ) ,
+    /*output  wire            */.ch2_read_req_ack     ( ch2_read_req_ack     ) ,
     /*output  wire            */.ch2_read_finish      () ,
-    /*input   wire    [1:0]   */.ch2_read_addr_index  () ,
-    /*input   wire            */.ch2_read_en          () ,
-    /*output  wire    [15:0]  */.ch2_read_data        () ,
+    /*input   wire    [1:0]   */.ch2_read_addr_index  ( ch2_read_addr_index  ) ,
+    /*input   wire            */.ch2_read_en          ( ch2_read_en          ) ,
+    /*output  wire    [15:0]  */.ch2_read_data        ( ch2_read_data        ) ,
     /*//channel 3*/
-    /*input   wire            */.ch3_write_clk        () ,
-    /*input   wire            */.ch3_write_req        () ,
-    /*output  wire            */.ch3_write_req_ack    () ,
+    /*input   wire            */.ch3_write_clk        ( pixclk_out           ) ,
+    /*input   wire            */.ch3_write_req        ( ch3_write_req        ) ,
+    /*output  wire            */.ch3_write_req_ack    ( ch3_write_req_ack    ) ,
     /*output  wire            */.ch3_write_finish     () ,
-    /*input   wire    [1:0]   */.ch3_write_addr_index () ,
-    /*input   wire            */.ch3_write_en         () ,
-    /*input   wire    [15:0]  */.ch3_write_data       () ,
-    /*input   wire            */.ch3_read_clk         () ,
-    /*input   wire            */.ch3_read_req         () ,
-    /*output  wire            */.ch3_read_req_ack     () ,
+    /*input   wire    [1:0]   */.ch3_write_addr_index ( ch3_write_addr_index ) ,
+    /*input   wire            */.ch3_write_en         ( ch3_write_en         ) ,
+    /*input   wire    [15:0]  */.ch3_write_data       ( ch3_write_data       ) ,
+    /*input   wire            */.ch3_read_clk         ( rgmii_clk            ) ,
+    /*input   wire            */.ch3_read_req         ( ch3_read_req         ) ,
+    /*output  wire            */.ch3_read_req_ack     ( ch3_read_req_ack     ) ,
     /*output  wire            */.ch3_read_finish      () ,
-    /*input   wire    [1:0]   */.ch3_read_addr_index  () ,
-    /*input   wire            */.ch3_read_en          () ,
-    /*output  wire    [15:0]  */.ch3_read_data        () 
+    /*input   wire    [1:0]   */.ch3_read_addr_index  ( ch3_read_addr_index  ) ,
+    /*input   wire            */.ch3_read_en          ( ch3_read_en          ) ,
+    /*output  wire    [15:0]  */.ch3_read_data        ( ch3_read_data        ) 
 );
+
+reg [7:0] dly_cnt;
+reg       idelay_rst;
+
+always @(posedge mig_clk or negedge rst_n) begin
+    if (!rst_n) begin
+        dly_cnt <= 0;
+        idelay_rst <= 1'b1; 
+    end else begin
+        if (dly_cnt < 8'hFF) 
+            dly_cnt <= dly_cnt + 1;
+        else 
+            idelay_rst <= 1'b0; 
+    end
+end
+
+IDELAYCTRL IDELAYCTRL_inst (
+    .RDY(),
+    .REFCLK(mig_clk),
+    .RST(idelay_rst) // 使用延时后的复位
+);
+
+ethernet_top ethernet_top_inst(
+    /*input   wire            */.clk           ( sys_clk_in ) ,
+    /*input   wire            */.video_clk     ( pixclk_out ) ,
+    /*input   wire            */.rst_n         ( rst_n ) ,
+    /*output  wire            */.read_req      ( ch3_read_req ) ,
+    /*input   wire            */.read_req_ack  ( ch3_read_req_ack ) ,
+    /*output  wire            */.read_en       ( ch3_read_en ) ,
+    /*input   wire    [15:0]  */.read_data     ( ch3_read_data ) ,
+
+    /*input   wire            */.key_flag1     ( btn_flag[4] ) ,
+
+    /*output  wire            */.udp_rx_en     () ,
+    /*output  wire    [7:0]   */.udp_idata     () ,
+    //ethernet
+    /*output  wire            */.rgmii_clk     ( rgmii_clk ) ,
+    /*input   wire            */.eth_rx_clk    ( rgmii_rxc ) ,//PHY芯片
+    /*input   wire            */.eth_rx_valid  ( rgmii_rx_ctl ) ,
+    /*input   wire    [3:0]   */.eth_rx_data   ( rgmii_rxd ) ,
+    /*output  wire            */.eth_tx_clk    ( rgmii_txc ) ,
+    /*output  wire            */.eth_tx_valid  ( rgmii_tx_ctl ) ,
+    /*output  wire    [3:0]   */.eth_tx_data   ( rgmii_txd )      
+ );
+
+reg[31:0] cnt_timer;
+always @(posedge rgmii_clk)begin
+	if( cnt_timer==32'h1_fff_fff) begin
+		led <= ~led;
+		cnt_timer<=32'h0;
+	end
+	else begin
+		led <= led;
+		cnt_timer<=cnt_timer + 1'b1;
+	end
+end
 
 endmodule
