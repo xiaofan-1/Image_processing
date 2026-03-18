@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/">
+        <file>reverbnation_apps_platform_icon_176111.ico</file>
+    </qresource>
+</RCC>
