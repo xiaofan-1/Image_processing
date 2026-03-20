@@ -11,7 +11,7 @@ module aq_axi_master_256 #(
     output  wire [7:0]            	M_AXI_AWLEN		, // Burst Length: 0-255
     output  wire [2:0]            	M_AXI_AWSIZE	, // Burst Size: 100
     output  wire [1:0]            	M_AXI_AWBURST	, // Burst Type: Fixed 2'b01(Incremental Burst)
-    output  wire                    M_AXI_AWLOCK	, // Lock: Fixed 2'b00
+    output  wire [0:0]            	M_AXI_AWLOCK	, // Lock: Fixed 2'b00
     output  wire [3:0]  			M_AXI_AWCACHE	, // Cache: Fiex 2'b0011
     output  wire [2:0]  			M_AXI_AWPROT	, // Protect: Fixed 2'b000
     output  wire [3:0] 				M_AXI_AWQOS		, // QoS: Fixed 2'b0000
@@ -22,28 +22,28 @@ module aq_axi_master_256 #(
     output  wire [DATA_WIDTH-1:0]	M_AXI_WDATA		,
     output  wire [DATA_WIDTH/8-1:0]	M_AXI_WSTRB		,
     output  wire        			M_AXI_WLAST		,
-    output  wire [0:0]  			M_AXI_WUSER		,
+    output  wire        			M_AXI_WUSER		,
     output  wire        			M_AXI_WVALID	,
     input   wire        			M_AXI_WREADY	,
 
     // Master Write Response
-    input   wire [0:0]   			M_AXI_BID		,
+    input   wire [3:0]   			M_AXI_BID		,
     input   wire [1:0]   			M_AXI_BRESP		,
-    input   wire [0:0]   			M_AXI_BUSER		,
+    input   wire          			M_AXI_BUSER		,
     input   wire         			M_AXI_BVALID	,
     output  wire         			M_AXI_BREADY	,
 
     // Master Read Address
-    output  wire [0:0]  			M_AXI_ARID		,
+    output  wire [3:0]  			M_AXI_ARID		,
     output  wire [29:0] 			M_AXI_ARADDR	,
     output  wire [7:0]  			M_AXI_ARLEN		,
     output  wire [2:0]  			M_AXI_ARSIZE	,
     output  wire [1:0]  			M_AXI_ARBURST	,
-    output  wire [1:0]  			M_AXI_ARLOCK	,
+    output  wire [0:0]  			M_AXI_ARLOCK	,
     output  wire [3:0]  			M_AXI_ARCACHE	,
     output  wire [2:0]  			M_AXI_ARPROT	,
     output  wire [3:0]  			M_AXI_ARQOS		,
-    output  wire [0:0]  			M_AXI_ARUSER	,
+    output  wire        			M_AXI_ARUSER	,
     output  wire        			M_AXI_ARVALID	,
     input   wire        			M_AXI_ARREADY	,
 
@@ -105,25 +105,25 @@ reg rd_fifo_enable;
 reg[31:0] rd_fifo_cnt;
 assign WR_DONE = (wr_state == S_WR_DONE);
 
-assign WR_FIFO_RE         = rd_first_data | (reg_wvalid & ~WR_FIFO_EMPTY & M_AXI_WREADY & rd_fifo_enable);
-//assign WR_FIFO_RE         = reg_wvalid & ~WR_FIFO_EMPTY & M_AXI_WREADY;
-always @(posedge ACLK or negedge ARESETN) begin
-    if(!ARESETN)
-        rd_fifo_cnt <= 32'd0;
-    else if(WR_FIFO_RE)
-        rd_fifo_cnt <= rd_fifo_cnt + 32'd1;
-    else if(wr_state == S_WR_IDLE)
-        rd_fifo_cnt <= 32'd0;	
-end
+//assign WR_FIFO_RE         = rd_first_data | (reg_wvalid & ~WR_FIFO_EMPTY & M_AXI_WREADY & rd_fifo_enable);
+assign WR_FIFO_RE         = reg_wvalid & ~WR_FIFO_EMPTY & M_AXI_WREADY;
+//always @(posedge ACLK or negedge ARESETN) begin
+//    if(!ARESETN)
+//        rd_fifo_cnt <= 32'd0;
+//    else if(WR_FIFO_RE)
+//        rd_fifo_cnt <= rd_fifo_cnt + 32'd1;
+//    else if(wr_state == S_WR_IDLE)
+//        rd_fifo_cnt <= 32'd0;	
+//end
 
-always @(posedge ACLK or negedge ARESETN) begin
-    if(!ARESETN)
-        rd_fifo_enable <= 1'b0;
-    else if(wr_state == S_WR_IDLE && WR_START)
-        rd_fifo_enable <= 1'b1;
-    else if(WR_FIFO_RE && (rd_fifo_cnt == RD_LEN[31:5] - 32'd1) )//5
-        rd_fifo_enable <= 1'b0;		
-end
+//always @(posedge ACLK or negedge ARESETN) begin
+//    if(!ARESETN)
+//        rd_fifo_enable <= 1'b0;
+//    else if(wr_state == S_WR_IDLE && WR_START)
+//        rd_fifo_enable <= 1'b1;
+//    else if(WR_FIFO_RE && (rd_fifo_cnt == RD_LEN[31:5] - 32'd1) )//5
+//        rd_fifo_enable <= 1'b0;		
+//end
   // Write State
 always @(posedge ACLK or negedge ARESETN) begin
     if(!ARESETN) begin
@@ -141,7 +141,7 @@ always @(posedge ACLK or negedge ARESETN) begin
         wr_chkdata          <= 8'd0;
         rd_chkdata <= 8'd0;
         resp <= 2'd0;
-        rd_first_data <= 1'b0;
+        //rd_first_data <= 1'b0;
     end 
     else begin
         if(MASTER_RST) begin
@@ -154,7 +154,7 @@ always @(posedge ACLK or negedge ARESETN) begin
                         wr_state          <= S_WA_WAIT;
                         reg_wr_adrs       <= WR_ADRS;
                         reg_wr_len[31:0]  <= WR_LEN[31:0] -32'd1;
-                        rd_first_data <= 1'b1;
+                        //rd_first_data <= 1'b1;
                     end
                     reg_awvalid         <= 1'b0;
                     reg_wvalid          <= 1'b0;
@@ -164,16 +164,16 @@ always @(posedge ACLK or negedge ARESETN) begin
                     reg_wr_status[1:0]  <= 2'd0;
                 end
                 S_WA_WAIT: begin
-                    if(!WR_FIFO_AEMPTY | (reg_wr_len[31:11] == 21'd0)) begin
+                    if(!WR_FIFO_AEMPTY | (reg_wr_len[31:11] == 'd0)) begin
                         wr_state          <= S_WA_START;
                     end
-                    rd_first_data <= 1'b0;
+                    //rd_first_data <= 1'b0;
                 end
                 S_WA_START: begin
                     wr_state            <= S_WD_WAIT;
                     reg_awvalid         <= 1'b1;
-                    reg_wr_len[31:11]    <= reg_wr_len[31:11] - 21'd1;
-                    if(reg_wr_len[31:11] != 21'd0) begin
+                    reg_wr_len[31:11]    <= reg_wr_len[31:11] - 'd1;
+                    if(reg_wr_len[31:11] != 'd0) begin
                         reg_w_len[7:0]  <= 8'hFF;
                         reg_w_last      <= 1'b0;
                         reg_w_stb[7:0]  <= 8'hFF;
@@ -326,7 +326,7 @@ always @(posedge ACLK or negedge ARESETN) begin
 end
    
 // Master Read Address
-assign M_AXI_ARID         = 1'b0;
+assign M_AXI_ARID         = 4'b0000;
 assign M_AXI_ARADDR       = reg_rd_adrs;
 assign M_AXI_ARLEN[7:0]   = reg_r_len[7:0];
 assign M_AXI_ARSIZE[2:0]  = 3'b101 ;
@@ -335,7 +335,6 @@ assign M_AXI_ARLOCK       = 1'b0;
 assign M_AXI_ARCACHE[3:0] = 4'b0011;
 assign M_AXI_ARPROT[2:0]  = 3'b000;
 assign M_AXI_ARQOS[3:0]   = 4'b0000;
-assign M_AXI_ARUSER[0]    = 1'b1;
 assign M_AXI_ARVALID      = reg_arvalid;
 
 assign M_AXI_RREADY       = M_AXI_RVALID & ~RD_FIFO_FULL;

@@ -7,8 +7,12 @@ module Top_ddr3 #(
     parameter READ_DATA_BITS         = 16   , //external memory user interface read data width
     parameter WRITE_DATA_BITS        = 16   , //external memory user interface write data width
     parameter BURST_SIZE             = 16   , //external memory user interface burst size
-    parameter H_PIXEL                = 1280 , //horizontal pixel
-    parameter V_PIXEL                = 720    //vertical pixel
+    parameter FRAME_SIZE0            = 1280 * 720  ,
+    parameter FRAME_SIZE1            = 1280 * 720  ,
+    parameter FRAME_SIZE2            = 1280 * 720  ,
+    parameter FRAME_SIZE3            = 1280 * 720  ,
+    parameter FRAME_SIZE4            = 1280 * 720  ,
+    parameter FRAME_SIZE5            = 1280 * 720  
 )(
     input   wire            clk_200M            ,
     input   wire            rst_n               ,
@@ -88,7 +92,37 @@ module Top_ddr3 #(
     output  wire            ch3_read_finish     ,
     input   wire    [1:0]   ch3_read_addr_index ,
     input   wire            ch3_read_en         ,
-    output  wire    [15:0]  ch3_read_data       
+    output  wire    [15:0]  ch3_read_data       ,
+    //channel 4
+    input   wire            ch4_write_clk       ,
+    input   wire            ch4_write_req       ,
+    output  wire            ch4_write_req_ack   ,
+    output  wire            ch4_write_finish    ,
+    input   wire    [1:0]   ch4_write_addr_index,
+    input   wire            ch4_write_en        ,
+    input   wire    [15:0]  ch4_write_data      ,
+    input   wire            ch4_read_clk        ,
+    input   wire            ch4_read_req        ,
+    output  wire            ch4_read_req_ack    ,
+    output  wire            ch4_read_finish     ,
+    input   wire    [1:0]   ch4_read_addr_index ,
+    input   wire            ch4_read_en         ,
+    output  wire    [15:0]  ch4_read_data       ,
+    //channel 5
+    input   wire            ch5_write_clk       ,
+    input   wire            ch5_write_req       ,
+    output  wire            ch5_write_req_ack   ,
+    output  wire            ch5_write_finish    ,
+    input   wire    [1:0]   ch5_write_addr_index,
+    input   wire            ch5_write_en        ,
+    input   wire    [15:0]  ch5_write_data      ,
+    input   wire            ch5_read_clk        ,
+    input   wire            ch5_read_req        ,
+    output  wire            ch5_read_req_ack    ,
+    output  wire            ch5_read_finish     ,
+    input   wire    [1:0]   ch5_read_addr_index ,
+    input   wire            ch5_read_en         ,
+    output  wire    [15:0]  ch5_read_data       
 );
 
 //===========================================================
@@ -98,15 +132,14 @@ wire                            ddr_clk;
 wire                            ddr_rst;
 // Master Write Address
 wire [3:0]                      s00_axi_awid	;
-wire [63:0]                     s00_axi_awaddr	;
+wire [29:0]                     s00_axi_awaddr	;
 wire [7:0]                      s00_axi_awlen	; // burst length: 0-255
 wire [2:0]                      s00_axi_awsize	; // burst size: fixed 2'b011
 wire [1:0]                      s00_axi_awburst	; // burst type: fixed 2'b01(incremental burst)
-wire                            s00_axi_awlock	; // lock: fixed 2'b00
+wire [0:0]                      s00_axi_awlock	; // lock: fixed 2'b00
 wire [3:0]                      s00_axi_awcache	; // cache: fiex 2'b0011
 wire [2:0]                      s00_axi_awprot	; // protect: fixed 2'b000
 wire [3:0]                      s00_axi_awqos	; // qos: fixed 2'b0000
-wire [0:0]                      s00_axi_awuser	; // user: fixed 32'd0
 wire                            s00_axi_awvalid	;
 wire                            s00_axi_awready	;
 // master write data
@@ -124,15 +157,14 @@ wire                            s00_axi_bvalid	;
 wire                            s00_axi_bready	;
 // master read address
 wire [3:0]                      s00_axi_arid	;
-wire [63:0]                     s00_axi_araddr	;
+wire [29:0]                     s00_axi_araddr	;
 wire [7:0]                      s00_axi_arlen	;
 wire [2:0]                      s00_axi_arsize	;
 wire [1:0]                      s00_axi_arburst	;
-wire [1:0]                      s00_axi_arlock	;
+wire [0:0]                      s00_axi_arlock	;
 wire [3:0]                      s00_axi_arcache	;
 wire [2:0]                      s00_axi_arprot	;
 wire [3:0]                      s00_axi_arqos	;
-wire [0:0]                      s00_axi_aruser	;
 wire                            s00_axi_arvalid	;
 wire                            s00_axi_arready	;
 // master read data
@@ -140,7 +172,6 @@ wire [3:0]                      s00_axi_rid		;
 wire [MEM_DATA_BITS - 1 : 0]    s00_axi_rdata	;
 wire [1:0]                      s00_axi_rresp	;
 wire                            s00_axi_rlast	;
-wire [0:0]                      s00_axi_ruser	;
 wire                            s00_axi_rvalid	;
 wire                            s00_axi_rready	;	
 
@@ -162,10 +193,10 @@ wire                            rd_burst_finish;
 //channel 0
 //===========================================================
 localparam CH0_ADDR_0 = 0;
-localparam CH0_ADDR_1 = H_PIXEL * V_PIXEL;
-localparam CH0_ADDR_2 = H_PIXEL * V_PIXEL * 2;
-localparam CH0_ADDR_3 = H_PIXEL * V_PIXEL * 3;
-localparam CH0_WR_RD_LEN = H_PIXEL * V_PIXEL / 16;
+localparam CH0_ADDR_1 = FRAME_SIZE0;
+localparam CH0_ADDR_2 = FRAME_SIZE0 * 2;
+localparam CH0_ADDR_3 = FRAME_SIZE0 * 3;
+localparam CH0_WR_RD_LEN = FRAME_SIZE0 / 16;
 
 wire                            ch0_rd_burst_req;
 wire[BURST_BITS - 1:0]          ch0_rd_burst_len;
@@ -184,11 +215,11 @@ wire                            ch0_wr_burst_finish;
 //===========================================================
 //channel 1
 //===========================================================
-localparam CH1_ADDR_0 = H_PIXEL * V_PIXEL * 4;
-localparam CH1_ADDR_1 = H_PIXEL * V_PIXEL * 5;
-localparam CH1_ADDR_2 = H_PIXEL * V_PIXEL * 6;
-localparam CH1_ADDR_3 = H_PIXEL * V_PIXEL * 7;
-localparam CH1_WR_RD_LEN = H_PIXEL * V_PIXEL / 16;
+localparam CH1_ADDR_0 = CH0_ADDR_3 + FRAME_SIZE0;
+localparam CH1_ADDR_1 = CH1_ADDR_0 + FRAME_SIZE1;
+localparam CH1_ADDR_2 = CH1_ADDR_0 + FRAME_SIZE1 * 2;
+localparam CH1_ADDR_3 = CH1_ADDR_0 + FRAME_SIZE1 * 3;
+localparam CH1_WR_RD_LEN = FRAME_SIZE1 / 16;
 
 wire                            ch1_rd_burst_req;
 wire[BURST_BITS - 1:0]          ch1_rd_burst_len;
@@ -207,11 +238,11 @@ wire                            ch1_wr_burst_finish;
 //===========================================================
 //channel 2
 //===========================================================
-localparam CH2_ADDR_0 = H_PIXEL * V_PIXEL * 8;
-localparam CH2_ADDR_1 = H_PIXEL * V_PIXEL * 9;
-localparam CH2_ADDR_2 = H_PIXEL * V_PIXEL * 10;
-localparam CH2_ADDR_3 = H_PIXEL * V_PIXEL * 11;   
-localparam CH2_WR_RD_LEN = H_PIXEL * V_PIXEL / 16;
+localparam CH2_ADDR_0 = CH1_ADDR_3 + FRAME_SIZE1;
+localparam CH2_ADDR_1 = CH2_ADDR_0 + FRAME_SIZE2;
+localparam CH2_ADDR_2 = CH2_ADDR_0 + FRAME_SIZE2 * 2;
+localparam CH2_ADDR_3 = CH2_ADDR_0 + FRAME_SIZE2 * 3;   
+localparam CH2_WR_RD_LEN = FRAME_SIZE2 / 16;
 
 wire                            ch2_rd_burst_req;
 wire[BURST_BITS - 1:0]          ch2_rd_burst_len;
@@ -230,11 +261,11 @@ wire                            ch2_wr_burst_finish;
 //===========================================================
 //channel 3
 //===========================================================
-localparam CH3_ADDR_0 = H_PIXEL * V_PIXEL * 12;
-localparam CH3_ADDR_1 = H_PIXEL * V_PIXEL * 13;
-localparam CH3_ADDR_2 = H_PIXEL * V_PIXEL * 14;
-localparam CH3_ADDR_3 = H_PIXEL * V_PIXEL * 15;   
-localparam CH3_WR_RD_LEN = H_PIXEL * V_PIXEL / 16;
+localparam CH3_ADDR_0 = CH2_ADDR_3 + FRAME_SIZE2;
+localparam CH3_ADDR_1 = CH3_ADDR_0 + FRAME_SIZE3;
+localparam CH3_ADDR_2 = CH3_ADDR_0 + FRAME_SIZE3 * 2;
+localparam CH3_ADDR_3 = CH3_ADDR_0 + FRAME_SIZE3 * 3;   
+localparam CH3_WR_RD_LEN = FRAME_SIZE3 / 16;
 
 wire                            ch3_rd_burst_req;
 wire[BURST_BITS - 1:0]          ch3_rd_burst_len;
@@ -249,6 +280,52 @@ wire[ADDR_BITS - 1:0]           ch3_wr_burst_addr;
 wire                            ch3_wr_burst_data_req;
 wire[MEM_DATA_BITS - 1 : 0]     ch3_wr_burst_data;
 wire                            ch3_wr_burst_finish;
+
+//===========================================================
+//channel 4
+//===========================================================
+localparam CH4_ADDR_0 = CH3_ADDR_3 + FRAME_SIZE3;
+localparam CH4_ADDR_1 = CH4_ADDR_0 + FRAME_SIZE4;
+localparam CH4_ADDR_2 = CH4_ADDR_0 + FRAME_SIZE4 * 2;
+localparam CH4_ADDR_3 = CH4_ADDR_0 + FRAME_SIZE4 * 3;   
+localparam CH4_WR_RD_LEN = FRAME_SIZE4 / 16;
+
+wire                            ch4_rd_burst_req;
+wire[BURST_BITS - 1:0]          ch4_rd_burst_len;
+wire[ADDR_BITS - 1:0]           ch4_rd_burst_addr;
+wire                            ch4_rd_burst_data_valid;
+wire[MEM_DATA_BITS - 1 : 0]     ch4_rd_burst_data;
+wire                            ch4_rd_burst_finish;
+
+wire                            ch4_wr_burst_req;
+wire[BURST_BITS - 1:0]          ch4_wr_burst_len;
+wire[ADDR_BITS - 1:0]           ch4_wr_burst_addr;
+wire                            ch4_wr_burst_data_req;
+wire[MEM_DATA_BITS - 1 : 0]     ch4_wr_burst_data;
+wire                            ch4_wr_burst_finish;
+
+//===========================================================
+//channel 5
+//===========================================================
+localparam CH5_ADDR_0 = CH4_ADDR_3 + FRAME_SIZE4;
+localparam CH5_ADDR_1 = CH5_ADDR_0 + FRAME_SIZE5;
+localparam CH5_ADDR_2 = CH5_ADDR_0 + FRAME_SIZE5 * 2;
+localparam CH5_ADDR_3 = CH5_ADDR_0 + FRAME_SIZE5 * 3;   
+localparam CH5_WR_RD_LEN = FRAME_SIZE5 / 16;
+
+wire                            ch5_rd_burst_req;
+wire[BURST_BITS - 1:0]          ch5_rd_burst_len;
+wire[ADDR_BITS - 1:0]           ch5_rd_burst_addr;
+wire                            ch5_rd_burst_data_valid;
+wire[MEM_DATA_BITS - 1 : 0]     ch5_rd_burst_data;
+wire                            ch5_rd_burst_finish;
+
+wire                            ch5_wr_burst_req;
+wire[BURST_BITS - 1:0]          ch5_wr_burst_len;
+wire[ADDR_BITS - 1:0]           ch5_wr_burst_addr;
+wire                            ch5_wr_burst_data_req;
+wire[MEM_DATA_BITS - 1 : 0]     ch5_wr_burst_data;
+wire                            ch5_wr_burst_finish;
 
 //===========================================================
 //ddr cache
@@ -453,6 +530,107 @@ frame_read_write #(
     /*input	    wire	[WRITE_DATA_BITS - 1:0] */.write_data		   ( ch3_write_data          )  // write data
 );
 
+//channel 4
+frame_read_write #(
+    .MEM_DATA_BITS          ( MEM_DATA_BITS   ),
+    .READ_DATA_BITS         ( READ_DATA_BITS  ),
+    .WRITE_DATA_BITS        ( WRITE_DATA_BITS ),
+    .ADDR_BITS              ( ADDR_BITS       ),
+    .BURST_BITS             ( BURST_BITS      ),
+    .BURST_SIZE             ( BURST_SIZE      )
+)frame_read_write_inst4(
+    /*input	    wire							*/.rst				   ( ddr_rst                 ),                  
+    /*input	    wire							*/.mem_clk			   ( ddr_clk                 ), // external memory controller user interface clock
+    /*output	wire							*/.rd_burst_req		   ( ch4_rd_burst_req        ), // to external memory controller,send out a burst read request
+    /*output	wire	[BURST_BITS - 1:0]		*/.rd_burst_len		   ( ch4_rd_burst_len        ), // to external memory controller,data length of the burst read request, not bytes
+    /*output	wire	[ADDR_BITS - 1:0]		*/.rd_burst_addr	   ( ch4_rd_burst_addr       ), // to external memory controller,base address of the burst read request 
+    /*input	    wire							*/.rd_burst_data_valid ( ch4_rd_burst_data_valid ), // from external memory controller,read data valid 
+    /*input	    wire	[MEM_DATA_BITS - 1:0]	*/.rd_burst_data	   ( ch4_rd_burst_data       ), // from external memory controller,read request data
+    /*input     wire							*/.rd_burst_finish	   ( ch4_rd_burst_finish     ), // from external memory controller,burst read finish
+    /*input     wire							*/.read_clk			   ( ch4_read_clk            ), // data read module clock
+    /*input     wire							*/.read_req			   ( ch4_read_req    		 ), // data read module read request,keep '1' until read_req_ack = '1'
+    /*output    wire							*/.read_req_ack		   ( ch4_read_req_ack		 ), // data read module read request response
+    /*output    wire							*/.read_finish		   ( ch4_read_finish         ), // data read module read request finish
+    /*input	    wire	[ADDR_BITS - 1:0]		*/.read_addr_0		   ( CH4_ADDR_0              ), // data read module read request base address 0, used when read_addr_index = 0
+    /*input	    wire	[ADDR_BITS - 1:0]		*/.read_addr_1		   ( CH4_ADDR_1              ), // data read module read request base address 1, used when read_addr_index = 1
+    /*input	    wire	[ADDR_BITS - 1:0]		*/.read_addr_2		   ( CH4_ADDR_2              ), // data read module read request base address 1, used when read_addr_index = 2
+    /*input	    wire	[ADDR_BITS - 1:0]		*/.read_addr_3		   ( CH4_ADDR_3              ), // data read module read request base address 1, used when read_addr_index = 3
+    /*input	    wire	[1:0]					*/.read_addr_index	   ( ch4_read_addr_index     ), // select valid base address from read_addr_0 read_addr_1 read_addr_2 read_addr_3
+    /*input	    wire	[ADDR_BITS - 1:0]		*/.read_len			   ( CH4_WR_RD_LEN           ), // data read module read request data length
+    /*input	    wire                        	*/.read_en			   ( ch4_read_en             ), // data read module read request for one data, read_data valid next clock
+    /*output	wire	[READ_DATA_BITS  - 1:0] */.read_data		   ( ch4_read_data           ), // read data
+    
+    /*output	wire                           	*/.wr_burst_req		   ( ch4_wr_burst_req        ), // to external memory controller,send out a burst write request
+    /*output	wire	[BURST_BITS - 1:0]      */.wr_burst_len		   ( ch4_wr_burst_len        ), // to external memory controller,data length of the burst write request, not bytes
+    /*output	wire	[ADDR_BITS - 1:0]       */.wr_burst_addr	   ( ch4_wr_burst_addr       ), // to external memory controller,base address of the burst write request 
+    /*input     wire		                    */.wr_burst_data_req   ( ch4_wr_burst_data_req   ), // from external memory controller,write data request ,before data 1 clock
+    /*output	wire	[MEM_DATA_BITS - 1:0]   */.wr_burst_data	   ( ch4_wr_burst_data       ), // to external memory controller,write data
+    /*input     wire		                    */.wr_burst_finish	   ( ch4_wr_burst_finish     ), // from external memory controller,burst write finish
+    /*input     wire		                    */.write_clk		   ( ch4_write_clk           ), // data write module clock
+    /*input     wire		                    */.write_req		   ( ch4_write_req           ), // data write module write request,keep '1' until read_req_ack = '1'
+    /*output    wire		                    */.write_req_ack	   ( ch4_write_req_ack       ), // data write module write request response
+    /*output    wire		                    */.write_finish		   ( ch4_write_finish        ), // data write module write request finish
+    /*input     wire		[ADDR_BITS - 1:0]   */.write_addr_0		   ( CH4_ADDR_0              ), // data write module write request base address 0, used when write_addr_index = 0
+    /*input     wire		[ADDR_BITS - 1:0]   */.write_addr_1		   ( CH4_ADDR_1              ), // data write module write request base address 1, used when write_addr_index = 1
+    /*input     wire		[ADDR_BITS - 1:0]   */.write_addr_2		   ( CH4_ADDR_2              ), // data write module write request base address 1, used when write_addr_index = 2
+    /*input     wire		[ADDR_BITS - 1:0]   */.write_addr_3		   ( CH4_ADDR_3              ), // data write module write request base address 1, used when write_addr_index = 3
+    /*input     wire		[1:0]               */.write_addr_index	   ( ch4_write_addr_index    ), // select valid base address from write_addr_0 write_addr_1 write_addr_2 write_addr_3
+    /*input     wire		[ADDR_BITS - 1:0]   */.write_len		   ( CH4_WR_RD_LEN           ), // data write module write request data length
+    /*input	    wire                            */.write_en			   ( ch4_write_en            ), // data write module write
+    /*input	    wire	[WRITE_DATA_BITS - 1:0] */.write_data		   ( ch4_write_data          )  // write data
+);
+
+//channel 4
+frame_read_write #(
+    .MEM_DATA_BITS          ( MEM_DATA_BITS   ),
+    .READ_DATA_BITS         ( READ_DATA_BITS  ),
+    .WRITE_DATA_BITS        ( WRITE_DATA_BITS ),
+    .ADDR_BITS              ( ADDR_BITS       ),
+    .BURST_BITS             ( BURST_BITS      ),
+    .BURST_SIZE             ( BURST_SIZE      )
+)frame_read_write_inst5(
+    /*input	    wire							*/.rst				   ( ddr_rst                 ),                  
+    /*input	    wire							*/.mem_clk			   ( ddr_clk                 ), // external memory controller user interface clock
+    /*output	wire							*/.rd_burst_req		   ( ch5_rd_burst_req        ), // to external memory controller,send out a burst read request
+    /*output	wire	[BURST_BITS - 1:0]		*/.rd_burst_len		   ( ch5_rd_burst_len        ), // to external memory controller,data length of the burst read request, not bytes
+    /*output	wire	[ADDR_BITS - 1:0]		*/.rd_burst_addr	   ( ch5_rd_burst_addr       ), // to external memory controller,base address of the burst read request 
+    /*input	    wire							*/.rd_burst_data_valid ( ch5_rd_burst_data_valid ), // from external memory controller,read data valid 
+    /*input	    wire	[MEM_DATA_BITS - 1:0]	*/.rd_burst_data	   ( ch5_rd_burst_data       ), // from external memory controller,read request data
+    /*input     wire							*/.rd_burst_finish	   ( ch5_rd_burst_finish     ), // from external memory controller,burst read finish
+    /*input     wire							*/.read_clk			   ( ch5_read_clk            ), // data read module clock
+    /*input     wire							*/.read_req			   ( ch5_read_req    		 ), // data read module read request,keep '1' until read_req_ack = '1'
+    /*output    wire							*/.read_req_ack		   ( ch5_read_req_ack		 ), // data read module read request response
+    /*output    wire							*/.read_finish		   ( ch5_read_finish         ), // data read module read request finish
+    /*input	    wire	[ADDR_BITS - 1:0]		*/.read_addr_0		   ( CH5_ADDR_0              ), // data read module read request base address 0, used when read_addr_index = 0
+    /*input	    wire	[ADDR_BITS - 1:0]		*/.read_addr_1		   ( CH5_ADDR_1              ), // data read module read request base address 1, used when read_addr_index = 1
+    /*input	    wire	[ADDR_BITS - 1:0]		*/.read_addr_2		   ( CH5_ADDR_2              ), // data read module read request base address 1, used when read_addr_index = 2
+    /*input	    wire	[ADDR_BITS - 1:0]		*/.read_addr_3		   ( CH5_ADDR_3              ), // data read module read request base address 1, used when read_addr_index = 3
+    /*input	    wire	[1:0]					*/.read_addr_index	   ( ch5_read_addr_index     ), // select valid base address from read_addr_0 read_addr_1 read_addr_2 read_addr_3
+    /*input	    wire	[ADDR_BITS - 1:0]		*/.read_len			   ( CH5_WR_RD_LEN           ), // data read module read request data length
+    /*input	    wire                        	*/.read_en			   ( ch5_read_en             ), // data read module read request for one data, read_data valid next clock
+    /*output	wire	[READ_DATA_BITS  - 1:0] */.read_data		   ( ch5_read_data           ), // read data
+    
+    /*output	wire                           	*/.wr_burst_req		   ( ch5_wr_burst_req        ), // to external memory controller,send out a burst write request
+    /*output	wire	[BURST_BITS - 1:0]      */.wr_burst_len		   ( ch5_wr_burst_len        ), // to external memory controller,data length of the burst write request, not bytes
+    /*output	wire	[ADDR_BITS - 1:0]       */.wr_burst_addr	   ( ch5_wr_burst_addr       ), // to external memory controller,base address of the burst write request 
+    /*input     wire		                    */.wr_burst_data_req   ( ch5_wr_burst_data_req   ), // from external memory controller,write data request ,before data 1 clock
+    /*output	wire	[MEM_DATA_BITS - 1:0]   */.wr_burst_data	   ( ch5_wr_burst_data       ), // to external memory controller,write data
+    /*input     wire		                    */.wr_burst_finish	   ( ch5_wr_burst_finish     ), // from external memory controller,burst write finish
+    /*input     wire		                    */.write_clk		   ( ch5_write_clk           ), // data write module clock
+    /*input     wire		                    */.write_req		   ( ch5_write_req           ), // data write module write request,keep '1' until read_req_ack = '1'
+    /*output    wire		                    */.write_req_ack	   ( ch5_write_req_ack       ), // data write module write request response
+    /*output    wire		                    */.write_finish		   ( ch5_write_finish        ), // data write module write request finish
+    /*input     wire		[ADDR_BITS - 1:0]   */.write_addr_0		   ( CH5_ADDR_0              ), // data write module write request base address 0, used when write_addr_index = 0
+    /*input     wire		[ADDR_BITS - 1:0]   */.write_addr_1		   ( CH5_ADDR_1              ), // data write module write request base address 1, used when write_addr_index = 1
+    /*input     wire		[ADDR_BITS - 1:0]   */.write_addr_2		   ( CH5_ADDR_2              ), // data write module write request base address 1, used when write_addr_index = 2
+    /*input     wire		[ADDR_BITS - 1:0]   */.write_addr_3		   ( CH5_ADDR_3              ), // data write module write request base address 1, used when write_addr_index = 3
+    /*input     wire		[1:0]               */.write_addr_index	   ( ch5_write_addr_index    ), // select valid base address from write_addr_0 write_addr_1 write_addr_2 write_addr_3
+    /*input     wire		[ADDR_BITS - 1:0]   */.write_len		   ( CH5_WR_RD_LEN           ), // data write module write request data length
+    /*input	    wire                            */.write_en			   ( ch5_write_en            ), // data write module write
+    /*input	    wire	[WRITE_DATA_BITS - 1:0] */.write_data		   ( ch5_write_data          )  // write data
+);
+
+
 //===========================================================
 //axi arbiter
 //===========================================================
@@ -493,6 +671,20 @@ mem_write_arbi #(
     /*output	wire							*/.ch3_wr_burst_data_req	( ch3_wr_burst_data_req ),
     /*input	    wire	[MEM_DATA_BITS - 1:0] 	*/.ch3_wr_burst_data		( ch3_wr_burst_data     ),
     /*output	wire							*/.ch3_wr_burst_finish		( ch3_wr_burst_finish   ),
+    //channel 4
+    /*input	    wire							*/.ch4_wr_burst_req		    ( ch4_wr_burst_req      ),
+    /*input	    wire	[BURST_BITS - 1:0] 		*/.ch4_wr_burst_len		    ( ch4_wr_burst_len      ),
+    /*input	    wire	[ADDR_BITS - 1:0] 		*/.ch4_wr_burst_addr		( ch4_wr_burst_addr     ),
+    /*output	wire							*/.ch4_wr_burst_data_req	( ch4_wr_burst_data_req ),
+    /*input	    wire	[MEM_DATA_BITS - 1:0] 	*/.ch4_wr_burst_data		( ch4_wr_burst_data     ),
+    /*output	wire							*/.ch4_wr_burst_finish		( ch4_wr_burst_finish   ),
+    //channel 5
+    /*input	    wire							*/.ch5_wr_burst_req		    ( ch5_wr_burst_req      ),
+    /*input	    wire	[BURST_BITS - 1:0] 		*/.ch5_wr_burst_len		    ( ch5_wr_burst_len      ),
+    /*input	    wire	[ADDR_BITS - 1:0] 		*/.ch5_wr_burst_addr		( ch5_wr_burst_addr     ),
+    /*output	wire							*/.ch5_wr_burst_data_req	( ch5_wr_burst_data_req ),
+    /*input	    wire	[MEM_DATA_BITS - 1:0] 	*/.ch5_wr_burst_data		( ch5_wr_burst_data     ),
+    /*output	wire							*/.ch5_wr_burst_finish		( ch5_wr_burst_finish   ),
     //arbiter output
     /*output 	reg								*/.wr_burst_req			    ( wr_burst_req          ),
     /*output 	reg	[BURST_BITS - 1:0] 			*/.wr_burst_len			    ( wr_burst_len          ),
@@ -538,6 +730,20 @@ mem_read_arbi #(
     /*output 	wire							*/.ch3_rd_burst_data_valid	( ch3_rd_burst_data_valid  ),
     /*output 	wire	[MEM_DATA_BITS - 1:0] 	*/.ch3_rd_burst_data        ( ch3_rd_burst_data        ),
     /*output 	wire							*/.ch3_rd_burst_finish		( ch3_rd_burst_finish      ),
+    //channel 4 
+    /*input 	wire							*/.ch4_rd_burst_req		    ( ch4_rd_burst_req         ),
+    /*input 	wire	[BURST_BITS - 1:0] 		*/.ch4_rd_burst_len		    ( ch4_rd_burst_len         ),
+    /*input 	wire	[ADDR_BITS - 1:0] 		*/.ch4_rd_burst_addr		( ch4_rd_burst_addr        ),
+    /*output 	wire							*/.ch4_rd_burst_data_valid	( ch4_rd_burst_data_valid  ),
+    /*output 	wire	[MEM_DATA_BITS - 1:0] 	*/.ch4_rd_burst_data        ( ch4_rd_burst_data        ),
+    /*output 	wire							*/.ch4_rd_burst_finish		( ch4_rd_burst_finish      ),
+    //channel 5 
+    /*input 	wire							*/.ch5_rd_burst_req		    ( ch5_rd_burst_req         ),
+    /*input 	wire	[BURST_BITS - 1:0] 		*/.ch5_rd_burst_len		    ( ch5_rd_burst_len         ),
+    /*input 	wire	[ADDR_BITS - 1:0] 		*/.ch5_rd_burst_addr		( ch5_rd_burst_addr        ),
+    /*output 	wire							*/.ch5_rd_burst_data_valid	( ch5_rd_burst_data_valid  ),
+    /*output 	wire	[MEM_DATA_BITS - 1:0] 	*/.ch5_rd_burst_data        ( ch5_rd_burst_data        ),
+    /*output 	wire							*/.ch5_rd_burst_finish		( ch5_rd_burst_finish      ),
     //arbiter output
     /*output 	reg 							*/.rd_burst_req			    ( rd_burst_req            ),
     /*output 	reg		[BURST_BITS - 1:0] 		*/.rd_burst_len			    ( rd_burst_len            ),
@@ -557,12 +763,12 @@ aq_axi_master_256 #(
     /*input   wire                      */.ARESETN          ( ~ddr_rst        ),
     /*input   wire                      */.ACLK             ( ddr_clk         ),
     // Master Write Address
-    /*output  wire [0:0]            	*/.M_AXI_AWID		( s00_axi_awid    ),
+    /*output  wire [3:0]            	*/.M_AXI_AWID		( s00_axi_awid    ),
     /*output  wire [29:0]           	*/.M_AXI_AWADDR	    ( s00_axi_awaddr  ),
     /*output  wire [7:0]            	*/.M_AXI_AWLEN		( s00_axi_awlen   ), // Burst Length: 0-255
     /*output  wire [2:0]            	*/.M_AXI_AWSIZE	    ( s00_axi_awsize  ), // Burst Size: 100
     /*output  wire [1:0]            	*/.M_AXI_AWBURST	( s00_axi_awburst ), // Burst Type: Fixed 2'b01(Incremental Burst)
-    /*output  wire                      */.M_AXI_AWLOCK	    ( s00_axi_awlock  ), // Lock: Fixed 2'b00
+    /*output  wire [0:0]            	*/.M_AXI_AWLOCK	    ( s00_axi_awlock  ), // Lock: Fixed 2'b00
     /*output  wire [3:0]  			    */.M_AXI_AWCACHE	( s00_axi_awcache ), // Cache: Fiex 2'b0011
     /*output  wire [2:0]  			    */.M_AXI_AWPROT	    ( s00_axi_awprot  ), // Protect: Fixed 2'b000
     /*output  wire [3:0] 				*/.M_AXI_AWQOS		( s00_axi_awqos   ), // QoS: Fixed 2'b0000
@@ -572,34 +778,34 @@ aq_axi_master_256 #(
     /*output  wire [DATA_WIDTH-1:0]	    */.M_AXI_WDATA		( s00_axi_wdata   ),
     /*output  wire [DATA_WIDTH/8-1:0]	*/.M_AXI_WSTRB		( s00_axi_wstrb   ),
     /*output  wire        			    */.M_AXI_WLAST		( s00_axi_wlast   ),
-    /*output  wire [0:0]  			    */.M_AXI_WUSER		( s00_axi_wuser   ),
+    /*output  wire        			    */.M_AXI_WUSER		( s00_axi_wuser   ),
     /*output  wire        			    */.M_AXI_WVALID	    ( s00_axi_wvalid  ),
     /*input   wire        			    */.M_AXI_WREADY	    ( s00_axi_wready  ),
     // Master Write Response  
-    /*input   wire [0:0]   			    */.M_AXI_BID		( s00_axi_bid     ),
+    /*input   wire [3:0]   			    */.M_AXI_BID		( s00_axi_bid     ),
     /*input   wire [1:0]   			    */.M_AXI_BRESP		( s00_axi_bresp   ),
     /*input   wire [0:0]   			    */.M_AXI_BUSER		( s00_axi_buser   ),
     /*input   wire         			    */.M_AXI_BVALID	    ( s00_axi_bvalid  ),
     /*output  wire         			    */.M_AXI_BREADY	    ( s00_axi_bready  ),
     // Master Read Address 
-    /*output  wire [0:0]  			    */.M_AXI_ARID		( s00_axi_arid    ),
+    /*output  wire [3:0]  			    */.M_AXI_ARID		( s00_axi_arid    ),
     /*output  wire [29:0] 			    */.M_AXI_ARADDR	    ( s00_axi_araddr  ),
     /*output  wire [7:0]  			    */.M_AXI_ARLEN		( s00_axi_arlen   ),
     /*output  wire [2:0]  			    */.M_AXI_ARSIZE	    ( s00_axi_arsize  ),
     /*output  wire [1:0]  			    */.M_AXI_ARBURST	( s00_axi_arburst ),
-    /*output  wire [1:0]  			    */.M_AXI_ARLOCK	    ( s00_axi_arlock  ),
+    /*output  wire [0:0]  			    */.M_AXI_ARLOCK	    ( s00_axi_arlock  ),
     /*output  wire [3:0]  			    */.M_AXI_ARCACHE	( s00_axi_arcache ),
     /*output  wire [2:0]  			    */.M_AXI_ARPROT	    ( s00_axi_arprot  ),
     /*output  wire [3:0]  			    */.M_AXI_ARQOS		( s00_axi_arqos   ),
-    /*output  wire [0:0]  			    */.M_AXI_ARUSER	    ( s00_axi_aruser  ),
+    /*output  wire        			    */.M_AXI_ARUSER	    ( s00_axi_aruser  ),
     /*output  wire        			    */.M_AXI_ARVALID	( s00_axi_arvalid ),
     /*input   wire        			    */.M_AXI_ARREADY	( s00_axi_arready ),
     // Master Read Data     
-    /*input   wire [0:0]   			    */.M_AXI_RID		( s00_axi_rid     ),
+    /*input   wire [3:0]   			    */.M_AXI_RID		( s00_axi_rid     ),
     /*input   wire [DATA_WIDTH-1:0]  	*/.M_AXI_RDATA		( s00_axi_rdata   ),//
     /*input   wire [1:0]   			    */.M_AXI_RRESP		( s00_axi_rresp   ),
     /*input   wire         			    */.M_AXI_RLAST		( s00_axi_rlast   ),
-    /*input   wire [0:0]   			    */.M_AXI_RUSER		( s00_axi_ruser   ),
+    /*input   wire         			    */.M_AXI_RUSER		( s00_axi_ruser   ),
     /*input   wire         			    */.M_AXI_RVALID	    ( s00_axi_rvalid  ),
     /*output  wire         			    */.M_AXI_RREADY	    ( s00_axi_rready  ),
     // Local Bus    
