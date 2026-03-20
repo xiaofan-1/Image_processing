@@ -1,4 +1,21 @@
 #IO引脚约束
+create_clock -period 37.037 -name sys_clk [get_ports sys_clk]
+
+create_clock -period 8.000 -name rgmii_rxc -waveform {0.000 4.000} [get_ports rgmii_rxc]
+
+# set_input_delay -clock [get_clocks rgmii_rxc] -max 1.5 [get_ports $rx_ports]
+# set_input_delay -clock [get_clocks rgmii_rxc] -min -1.5 [get_ports $rx_ports]
+
+# set_input_delay -clock [get_clocks rgmii_rxc] -clock_fall -max -add_delay 1.5 [get_ports $rx_ports]
+# set_input_delay -clock [get_clocks rgmii_rxc] -clock_fall -min -add_delay -1.5 [get_ports $rx_ports]
+
+set_property CLOCK_DEDICATED_ROUTE FALSE [get_nets vs_in_IBUF]
+
+# 给以太网的 IDELAYCTRL 命名分组 (去掉错误的路径前缀)
+set_property IODELAY_GROUP ETH_DELAY_GRP [get_cells IDELAYCTRL_inst]
+# 给以太网 RGMII RX 底层模块分组 (将 ethernet_test_inst 改为 ethernet_top_inst)
+set_property IODELAY_GROUP ETH_DELAY_GRP [get_cells -hierarchical -filter {PRIMITIVE_TYPE =~ *IDELAY* && NAME =~ *ethernet_top_inst*}]
+
 #----------------------系统时钟---------------------------
 set_property -dict {PACKAGE_PIN D18 IOSTANDARD LVCMOS33} [get_ports sys_clk]
 #----------------------系统复位---------------------------
@@ -6,11 +23,15 @@ set_property -dict {PACKAGE_PIN C22 IOSTANDARD LVCMOS33} [get_ports sys_rst_n]
 #----------------------LED---------------------------
 set_property -dict {PACKAGE_PIN A20 IOSTANDARD LVCMOS33} [get_ports init_calib_complete]
 set_property -dict {PACKAGE_PIN C18 IOSTANDARD LVCMOS33} [get_ports init_over]
-set_property -dict {PACKAGE_PIN C19 IOSTANDARD LVCMOS33} [get_ports cam_init_done_0]
-set_property -dict {PACKAGE_PIN E18 IOSTANDARD LVCMOS33} [get_ports cam_led]
+set_property -dict {PACKAGE_PIN C19 IOSTANDARD LVCMOS33} [get_ports led]
+set_property -dict {PACKAGE_PIN E18 IOSTANDARD LVCMOS33} [get_ports cam_led0]
+set_property -dict {PACKAGE_PIN A17 IOSTANDARD LVCMOS33} [get_ports cam_led1]
 #----------------------IIC引脚约束---------------------------
-set_property -dict {PACKAGE_PIN K22 IOSTANDARD LVCMOS33} [get_ports hdmi_scl]
-set_property -dict {PACKAGE_PIN K23 IOSTANDARD LVCMOS33} [get_ports hdmi_sda]
+# set_property -dict {PACKAGE_PIN K22 IOSTANDARD LVCMOS33} [get_ports hdmi_scl]
+# set_property -dict {PACKAGE_PIN K23 IOSTANDARD LVCMOS33} [get_ports hdmi_sda]
+
+set_property -dict {PACKAGE_PIN J15 IOSTANDARD LVCMOS33} [get_ports hdmi_scl]
+set_property -dict {PACKAGE_PIN J14 IOSTANDARD LVCMOS33} [get_ports hdmi_sda]
 
 #----------------------HDMI TMDS引脚约束---------------------------
 set_property -dict {PACKAGE_PIN N21 IOSTANDARD TMDS_33} [get_ports tmds_clk_p]
@@ -21,6 +42,37 @@ set_property -dict {PACKAGE_PIN P23 IOSTANDARD TMDS_33} [get_ports {tmds_data_p[
 set_property -dict {PACKAGE_PIN P24 IOSTANDARD TMDS_33} [get_ports {tmds_data_n[1]}]
 set_property -dict {PACKAGE_PIN N23 IOSTANDARD TMDS_33} [get_ports {tmds_data_p[2]}]
 set_property -dict {PACKAGE_PIN N24 IOSTANDARD TMDS_33} [get_ports {tmds_data_n[2]}]
+
+#----------------------HDMI MS7200接口---------------------------
+set_property -dict {PACKAGE_PIN K21 IOSTANDARD LVCMOS33} [get_ports pixclk_in]
+set_property -dict {PACKAGE_PIN G25 IOSTANDARD LVCMOS33} [get_ports rstn_out]
+set_property -dict {PACKAGE_PIN M14 IOSTANDARD LVCMOS33} [get_ports vs_in]
+set_property -dict {PACKAGE_PIN M17 IOSTANDARD LVCMOS33} [get_ports hs_in]
+set_property -dict {PACKAGE_PIN M16 IOSTANDARD LVCMOS33} [get_ports de_in]
+set_property -dict {PACKAGE_PIN M15 IOSTANDARD LVCMOS33} [get_ports {r_in[0]}]
+set_property -dict {PACKAGE_PIN H19 IOSTANDARD LVCMOS33} [get_ports {r_in[1]}]
+set_property -dict {PACKAGE_PIN J19 IOSTANDARD LVCMOS33} [get_ports {r_in[2]}]
+set_property -dict {PACKAGE_PIN J20 IOSTANDARD LVCMOS33} [get_ports {r_in[3]}]
+set_property -dict {PACKAGE_PIN K20 IOSTANDARD LVCMOS33} [get_ports {r_in[4]}]
+set_property -dict {PACKAGE_PIN G21 IOSTANDARD LVCMOS33} [get_ports {r_in[5]}]
+set_property -dict {PACKAGE_PIN G20 IOSTANDARD LVCMOS33} [get_ports {r_in[6]}]
+set_property -dict {PACKAGE_PIN H22 IOSTANDARD LVCMOS33} [get_ports {r_in[7]}]
+set_property -dict {PACKAGE_PIN J24 IOSTANDARD LVCMOS33} [get_ports {g_in[0]}]
+set_property -dict {PACKAGE_PIN K23 IOSTANDARD LVCMOS33} [get_ports {g_in[1]}]
+set_property -dict {PACKAGE_PIN K22 IOSTANDARD LVCMOS33} [get_ports {g_in[2]}]
+set_property -dict {PACKAGE_PIN J16 IOSTANDARD LVCMOS33} [get_ports {g_in[3]}]
+set_property -dict {PACKAGE_PIN K15 IOSTANDARD LVCMOS33} [get_ports {g_in[4]}]
+set_property -dict {PACKAGE_PIN K17 IOSTANDARD LVCMOS33} [get_ports {g_in[5]}]
+set_property -dict {PACKAGE_PIN K16 IOSTANDARD LVCMOS33} [get_ports {g_in[6]}]
+set_property -dict {PACKAGE_PIN L15 IOSTANDARD LVCMOS33} [get_ports {g_in[7]}]
+set_property -dict {PACKAGE_PIN L18 IOSTANDARD LVCMOS33} [get_ports {b_in[0]}]
+set_property -dict {PACKAGE_PIN L17 IOSTANDARD LVCMOS33} [get_ports {b_in[1]}]
+set_property -dict {PACKAGE_PIN H18 IOSTANDARD LVCMOS33} [get_ports {b_in[2]}]
+set_property -dict {PACKAGE_PIN J18 IOSTANDARD LVCMOS33} [get_ports {b_in[3]}]
+set_property -dict {PACKAGE_PIN J21 IOSTANDARD LVCMOS33} [get_ports {b_in[4]}]
+set_property -dict {PACKAGE_PIN H23 IOSTANDARD LVCMOS33} [get_ports {b_in[5]}]
+set_property -dict {PACKAGE_PIN J23 IOSTANDARD LVCMOS33} [get_ports {b_in[6]}]
+set_property -dict {PACKAGE_PIN H24 IOSTANDARD LVCMOS33} [get_ports {b_in[7]}]
 
 #----------------------HDMI引脚约束---------------------------
 # set_property -dict {PACKAGE_PIN T24 IOSTANDARD LVCMOS33} [get_ports pixclk_out]
@@ -110,6 +162,21 @@ set_property -dict {PACKAGE_PIN Y23 IOSTANDARD LVCMOS33} [get_ports camera_vsync
 set_property -dict {PACKAGE_PIN T17 IOSTANDARD LVCMOS33} [get_ports SCL_0]
 set_property -dict {PACKAGE_PIN U14 IOSTANDARD LVCMOS33} [get_ports SDA_0]
 set_property -dict {PACKAGE_PIN T20 IOSTANDARD LVCMOS33} [get_ports cam_rst_0]
+
+# set_property -dict {PACKAGE_PIN L22 IOSTANDARD LVCMOS33} [get_ports camera_clk_0]
+# set_property -dict {PACKAGE_PIN M24 IOSTANDARD LVCMOS33} [get_ports {camera_data_0[0]}]
+# set_property -dict {PACKAGE_PIN R22 IOSTANDARD LVCMOS33} [get_ports {camera_data_0[1]}]
+# set_property -dict {PACKAGE_PIN K26 IOSTANDARD LVCMOS33} [get_ports {camera_data_0[2]}]
+# set_property -dict {PACKAGE_PIN K25 IOSTANDARD LVCMOS33} [get_ports {camera_data_0[3]}]
+# set_property -dict {PACKAGE_PIN M25 IOSTANDARD LVCMOS33} [get_ports {camera_data_0[4]}]
+# set_property -dict {PACKAGE_PIN N19 IOSTANDARD LVCMOS33} [get_ports {camera_data_0[5]}]
+# set_property -dict {PACKAGE_PIN T24 IOSTANDARD LVCMOS33} [get_ports {camera_data_0[6]}]
+# set_property -dict {PACKAGE_PIN R21 IOSTANDARD LVCMOS33} [get_ports {camera_data_0[7]}]
+# set_property -dict {PACKAGE_PIN T25 IOSTANDARD LVCMOS33} [get_ports camera_href_0]
+# set_property -dict {PACKAGE_PIN L23 IOSTANDARD LVCMOS33} [get_ports camera_vsync_0]
+# set_property -dict {PACKAGE_PIN P19 IOSTANDARD LVCMOS33} [get_ports SCL_0]
+# set_property -dict {PACKAGE_PIN R20 IOSTANDARD LVCMOS33} [get_ports SDA_0]
+# set_property -dict {PACKAGE_PIN T22 IOSTANDARD LVCMOS33} [get_ports cam_rst_0]
 #----------------------ov5640_1---------------------------
 #set_property -dict {PACKAGE_PIN U21 IOSTANDARD LVCMOS33} [get_ports camera_clk_1]
 #set_property -dict {PACKAGE_PIN V21 IOSTANDARD LVCMOS33} [get_ports {camera_data_1[0]}]
@@ -125,15 +192,49 @@ set_property -dict {PACKAGE_PIN T20 IOSTANDARD LVCMOS33} [get_ports cam_rst_0]
 #set_property -dict {PACKAGE_PIN W19 IOSTANDARD LVCMOS33} [get_ports SCL_1]
 #set_property -dict {PACKAGE_PIN V16 IOSTANDARD LVCMOS33} [get_ports SDA_1]
 #set_property -dict {PACKAGE_PIN Y20 IOSTANDARD LVCMOS33} [get_ports cam_rst_1]
+
+set_property -dict {PACKAGE_PIN U21 IOSTANDARD LVCMOS33} [get_ports camera_clk_1]
+set_property -dict {PACKAGE_PIN V21 IOSTANDARD LVCMOS33} [get_ports {camera_data_1[0]}]
+set_property -dict {PACKAGE_PIN T15 IOSTANDARD LVCMOS33} [get_ports {camera_data_1[1]}]
+set_property -dict {PACKAGE_PIN T14 IOSTANDARD LVCMOS33} [get_ports {camera_data_1[2]}]
+set_property -dict {PACKAGE_PIN V19 IOSTANDARD LVCMOS33} [get_ports {camera_data_1[3]}]
+set_property -dict {PACKAGE_PIN U16 IOSTANDARD LVCMOS33} [get_ports {camera_data_1[4]}]
+set_property -dict {PACKAGE_PIN V17 IOSTANDARD LVCMOS33} [get_ports {camera_data_1[5]}]
+set_property -dict {PACKAGE_PIN W20 IOSTANDARD LVCMOS33} [get_ports {camera_data_1[6]}]
+set_property -dict {PACKAGE_PIN Y20 IOSTANDARD LVCMOS33} [get_ports {camera_data_1[7]}]
+set_property -dict {PACKAGE_PIN W24 IOSTANDARD LVCMOS33} [get_ports camera_href_1]
+set_property -dict {PACKAGE_PIN V24 IOSTANDARD LVCMOS33} [get_ports camera_vsync_1]
+set_property -dict {PACKAGE_PIN W19 IOSTANDARD LVCMOS33} [get_ports SCL_1]
+set_property -dict {PACKAGE_PIN V23 IOSTANDARD LVCMOS33} [get_ports SDA_1]
+set_property -dict {PACKAGE_PIN AA23 IOSTANDARD LVCMOS33} [get_ports cam_rst_1]
 #----------------------video_sel---------------------------
-#set_property -dict {PACKAGE_PIN C23 IOSTANDARD LVCMOS33} [get_ports {key[0]}]
-#set_property -dict {PACKAGE_PIN B22 IOSTANDARD LVCMOS33} [get_ports {key[1]}]
-#set_property -dict {PACKAGE_PIN A22 IOSTANDARD LVCMOS33} [get_ports {key[2]}]
-#set_property -dict {PACKAGE_PIN B20 IOSTANDARD LVCMOS33} [get_ports {key[3]}]
+# set_property -dict {PACKAGE_PIN C22 IOSTANDARD LVCMOS33} [get_ports {key[0]}]
+set_property -dict {PACKAGE_PIN C23 IOSTANDARD LVCMOS33} [get_ports {key[1]}]
+set_property -dict {PACKAGE_PIN B22 IOSTANDARD LVCMOS33} [get_ports {key[2]}]
+set_property -dict {PACKAGE_PIN A22 IOSTANDARD LVCMOS33} [get_ports {key[3]}]
+set_property -dict {PACKAGE_PIN B20 IOSTANDARD LVCMOS33} [get_ports {key[4]}]
 
 #set_property -dict {PACKAGE_PIN A18 IOSTANDARD LVCMOS33} [get_ports video_led]
 #set_property -dict {PACKAGE_PIN C17 IOSTANDARD LVCMOS33} [get_ports {video_led_s[1]}]
 #set_property -dict {PACKAGE_PIN B17 IOSTANDARD LVCMOS33} [get_ports {video_led_s[0]}]
+
+#----------------------ethernet---------------------------
+set_property -dict {PACKAGE_PIN D19 IOSTANDARD LVCMOS33} [get_ports rgmii_rxc]
+set_property -dict {PACKAGE_PIN H16 IOSTANDARD LVCMOS33} [get_ports rgmii_rx_ctl]
+set_property -dict {PACKAGE_PIN B19 IOSTANDARD LVCMOS33} [get_ports {rgmii_rxd[3]}]
+set_property -dict {PACKAGE_PIN A19 IOSTANDARD LVCMOS33} [get_ports {rgmii_rxd[2]}]
+set_property -dict {PACKAGE_PIN E16 IOSTANDARD LVCMOS33} [get_ports {rgmii_rxd[1]}]
+set_property -dict {PACKAGE_PIN D16 IOSTANDARD LVCMOS33} [get_ports {rgmii_rxd[0]}]
+set_property -dict {PACKAGE_PIN G16 IOSTANDARD LVCMOS33} [get_ports rgmii_txc]
+set_property -dict {PACKAGE_PIN D20 IOSTANDARD LVCMOS33} [get_ports rgmii_tx_ctl]
+set_property -dict {PACKAGE_PIN D21 IOSTANDARD LVCMOS33} [get_ports {rgmii_txd[3]}]
+set_property -dict {PACKAGE_PIN C21 IOSTANDARD LVCMOS33} [get_ports {rgmii_txd[2]}]
+set_property -dict {PACKAGE_PIN B21 IOSTANDARD LVCMOS33} [get_ports {rgmii_txd[1]}]
+set_property -dict {PACKAGE_PIN E20 IOSTANDARD LVCMOS33} [get_ports {rgmii_txd[0]}]
+
+# set_property -dict {PACKAGE_PIN G25 IOSTANDARD LVCMOS33} [get_ports phy_rstn]
+
+
 
 
 
@@ -143,41 +244,53 @@ create_debug_core u_ila_0 ila
 set_property ALL_PROBE_SAME_MU true [get_debug_cores u_ila_0]
 set_property ALL_PROBE_SAME_MU_CNT 1 [get_debug_cores u_ila_0]
 set_property C_ADV_TRIGGER false [get_debug_cores u_ila_0]
-set_property C_DATA_DEPTH 1024 [get_debug_cores u_ila_0]
+set_property C_DATA_DEPTH 2048 [get_debug_cores u_ila_0]
 set_property C_EN_STRG_QUAL false [get_debug_cores u_ila_0]
 set_property C_INPUT_PIPE_STAGES 0 [get_debug_cores u_ila_0]
 set_property C_TRIGIN_EN false [get_debug_cores u_ila_0]
 set_property C_TRIGOUT_EN false [get_debug_cores u_ila_0]
 set_property port_width 1 [get_debug_ports u_ila_0/clk]
-connect_debug_port u_ila_0/clk [get_nets [list camera_clk_0_IBUF_BUFG]]
+connect_debug_port u_ila_0/clk [get_nets [list hdmi_clk_inst/inst/clk_out2]]
 set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe0]
-set_property port_width 16 [get_debug_ports u_ila_0/probe0]
-connect_debug_port u_ila_0/probe0 [get_nets [list {ch0_write_data[0]} {ch0_write_data[1]} {ch0_write_data[2]} {ch0_write_data[3]} {ch0_write_data[4]} {ch0_write_data[5]} {ch0_write_data[6]} {ch0_write_data[7]} {ch0_write_data[8]} {ch0_write_data[9]} {ch0_write_data[10]} {ch0_write_data[11]} {ch0_write_data[12]} {ch0_write_data[13]} {ch0_write_data[14]} {ch0_write_data[15]}]]
+set_property port_width 12 [get_debug_ports u_ila_0/probe0]
+connect_debug_port u_ila_0/probe0 [get_nets [list {image_color_inst/font_rom_u/addra[0]} {image_color_inst/font_rom_u/addra[1]} {image_color_inst/font_rom_u/addra[2]} {image_color_inst/font_rom_u/addra[3]} {image_color_inst/font_rom_u/addra[4]} {image_color_inst/font_rom_u/addra[5]} {image_color_inst/font_rom_u/addra[6]} {image_color_inst/font_rom_u/addra[7]} {image_color_inst/font_rom_u/addra[8]} {image_color_inst/font_rom_u/addra[9]} {image_color_inst/font_rom_u/addra[10]} {image_color_inst/font_rom_u/addra[11]}]]
 create_debug_port u_ila_0 probe
 set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe1]
-set_property port_width 8 [get_debug_ports u_ila_0/probe1]
-connect_debug_port u_ila_0/probe1 [get_nets [list {camera_data_0_IBUF[0]} {camera_data_0_IBUF[1]} {camera_data_0_IBUF[2]} {camera_data_0_IBUF[3]} {camera_data_0_IBUF[4]} {camera_data_0_IBUF[5]} {camera_data_0_IBUF[6]} {camera_data_0_IBUF[7]}]]
+set_property port_width 24 [get_debug_ports u_ila_0/probe1]
+connect_debug_port u_ila_0/probe1 [get_nets [list {image_color_inst/font_rom_u/font_red_data[0]} {image_color_inst/font_rom_u/font_red_data[1]} {image_color_inst/font_rom_u/font_red_data[2]} {image_color_inst/font_rom_u/font_red_data[3]} {image_color_inst/font_rom_u/font_red_data[4]} {image_color_inst/font_rom_u/font_red_data[5]} {image_color_inst/font_rom_u/font_red_data[6]} {image_color_inst/font_rom_u/font_red_data[7]} {image_color_inst/font_rom_u/font_red_data[8]} {image_color_inst/font_rom_u/font_red_data[9]} {image_color_inst/font_rom_u/font_red_data[10]} {image_color_inst/font_rom_u/font_red_data[11]} {image_color_inst/font_rom_u/font_red_data[12]} {image_color_inst/font_rom_u/font_red_data[13]} {image_color_inst/font_rom_u/font_red_data[14]} {image_color_inst/font_rom_u/font_red_data[15]} {image_color_inst/font_rom_u/font_red_data[16]} {image_color_inst/font_rom_u/font_red_data[17]} {image_color_inst/font_rom_u/font_red_data[18]} {image_color_inst/font_rom_u/font_red_data[19]} {image_color_inst/font_rom_u/font_red_data[20]} {image_color_inst/font_rom_u/font_red_data[21]} {image_color_inst/font_rom_u/font_red_data[22]} {image_color_inst/font_rom_u/font_red_data[23]}]]
 create_debug_port u_ila_0 probe
 set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe2]
-set_property port_width 1 [get_debug_ports u_ila_0/probe2]
-connect_debug_port u_ila_0/probe2 [get_nets [list camera_href_0_IBUF]]
+set_property port_width 24 [get_debug_ports u_ila_0/probe2]
+connect_debug_port u_ila_0/probe2 [get_nets [list {image_color_inst/data_o[0]} {image_color_inst/data_o[1]} {image_color_inst/data_o[2]} {image_color_inst/data_o[3]} {image_color_inst/data_o[4]} {image_color_inst/data_o[5]} {image_color_inst/data_o[6]} {image_color_inst/data_o[7]} {image_color_inst/data_o[8]} {image_color_inst/data_o[9]} {image_color_inst/data_o[10]} {image_color_inst/data_o[11]} {image_color_inst/data_o[12]} {image_color_inst/data_o[13]} {image_color_inst/data_o[14]} {image_color_inst/data_o[15]} {image_color_inst/data_o[16]} {image_color_inst/data_o[17]} {image_color_inst/data_o[18]} {image_color_inst/data_o[19]} {image_color_inst/data_o[20]} {image_color_inst/data_o[21]} {image_color_inst/data_o[22]} {image_color_inst/data_o[23]}]]
 create_debug_port u_ila_0 probe
 set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe3]
-set_property port_width 1 [get_debug_ports u_ila_0/probe3]
-connect_debug_port u_ila_0/probe3 [get_nets [list camera_vsync_0_IBUF]]
+set_property port_width 24 [get_debug_ports u_ila_0/probe3]
+connect_debug_port u_ila_0/probe3 [get_nets [list {image_color_inst/font_rom_data[0]} {image_color_inst/font_rom_data[1]} {image_color_inst/font_rom_data[2]} {image_color_inst/font_rom_data[3]} {image_color_inst/font_rom_data[4]} {image_color_inst/font_rom_data[5]} {image_color_inst/font_rom_data[6]} {image_color_inst/font_rom_data[7]} {image_color_inst/font_rom_data[8]} {image_color_inst/font_rom_data[9]} {image_color_inst/font_rom_data[10]} {image_color_inst/font_rom_data[11]} {image_color_inst/font_rom_data[12]} {image_color_inst/font_rom_data[13]} {image_color_inst/font_rom_data[14]} {image_color_inst/font_rom_data[15]} {image_color_inst/font_rom_data[16]} {image_color_inst/font_rom_data[17]} {image_color_inst/font_rom_data[18]} {image_color_inst/font_rom_data[19]} {image_color_inst/font_rom_data[20]} {image_color_inst/font_rom_data[21]} {image_color_inst/font_rom_data[22]} {image_color_inst/font_rom_data[23]}]]
 create_debug_port u_ila_0 probe
 set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe4]
-set_property port_width 1 [get_debug_ports u_ila_0/probe4]
-connect_debug_port u_ila_0/probe4 [get_nets [list ch0_write_en]]
+set_property port_width 12 [get_debug_ports u_ila_0/probe4]
+connect_debug_port u_ila_0/probe4 [get_nets [list {image_color_inst/pixel_x_reg_font[0]} {image_color_inst/pixel_x_reg_font[1]} {image_color_inst/pixel_x_reg_font[2]} {image_color_inst/pixel_x_reg_font[3]} {image_color_inst/pixel_x_reg_font[4]} {image_color_inst/pixel_x_reg_font[5]} {image_color_inst/pixel_x_reg_font[6]} {image_color_inst/pixel_x_reg_font[7]} {image_color_inst/pixel_x_reg_font[8]} {image_color_inst/pixel_x_reg_font[9]} {image_color_inst/pixel_x_reg_font[10]} {image_color_inst/pixel_x_reg_font[11]}]]
 create_debug_port u_ila_0 probe
 set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe5]
-set_property port_width 1 [get_debug_ports u_ila_0/probe5]
-connect_debug_port u_ila_0/probe5 [get_nets [list cmos_frame_href]]
+set_property port_width 12 [get_debug_ports u_ila_0/probe5]
+connect_debug_port u_ila_0/probe5 [get_nets [list {image_color_inst/pixle_y_reg[0]} {image_color_inst/pixle_y_reg[1]} {image_color_inst/pixle_y_reg[2]} {image_color_inst/pixle_y_reg[3]} {image_color_inst/pixle_y_reg[4]} {image_color_inst/pixle_y_reg[5]} {image_color_inst/pixle_y_reg[6]} {image_color_inst/pixle_y_reg[7]} {image_color_inst/pixle_y_reg[8]} {image_color_inst/pixle_y_reg[9]} {image_color_inst/pixle_y_reg[10]} {image_color_inst/pixle_y_reg[11]}]]
 create_debug_port u_ila_0 probe
 set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe6]
-set_property port_width 1 [get_debug_ports u_ila_0/probe6]
-connect_debug_port u_ila_0/probe6 [get_nets [list cmos_frame_vsync]]
+set_property port_width 12 [get_debug_ports u_ila_0/probe6]
+connect_debug_port u_ila_0/probe6 [get_nets [list {image_color_inst/pixel_y_reg_font[0]} {image_color_inst/pixel_y_reg_font[1]} {image_color_inst/pixel_y_reg_font[2]} {image_color_inst/pixel_y_reg_font[3]} {image_color_inst/pixel_y_reg_font[4]} {image_color_inst/pixel_y_reg_font[5]} {image_color_inst/pixel_y_reg_font[6]} {image_color_inst/pixel_y_reg_font[7]} {image_color_inst/pixel_y_reg_font[8]} {image_color_inst/pixel_y_reg_font[9]} {image_color_inst/pixel_y_reg_font[10]} {image_color_inst/pixel_y_reg_font[11]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe7]
+set_property port_width 12 [get_debug_ports u_ila_0/probe7]
+connect_debug_port u_ila_0/probe7 [get_nets [list {image_color_inst/pixle_x_reg[0]} {image_color_inst/pixle_x_reg[1]} {image_color_inst/pixle_x_reg[2]} {image_color_inst/pixle_x_reg[3]} {image_color_inst/pixle_x_reg[4]} {image_color_inst/pixle_x_reg[5]} {image_color_inst/pixle_x_reg[6]} {image_color_inst/pixle_x_reg[7]} {image_color_inst/pixle_x_reg[8]} {image_color_inst/pixle_x_reg[9]} {image_color_inst/pixle_x_reg[10]} {image_color_inst/pixle_x_reg[11]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe8]
+set_property port_width 1 [get_debug_ports u_ila_0/probe8]
+connect_debug_port u_ila_0/probe8 [get_nets [list image_color_inst/de_o]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe9]
+set_property port_width 1 [get_debug_ports u_ila_0/probe9]
+connect_debug_port u_ila_0/probe9 [get_nets [list image_color_inst/de_reg]]
 set_property C_CLK_INPUT_FREQ_HZ 300000000 [get_debug_cores dbg_hub]
 set_property C_ENABLE_CLK_DIVIDER false [get_debug_cores dbg_hub]
 set_property C_USER_SCAN_CHAIN 1 [get_debug_cores dbg_hub]
-connect_debug_port dbg_hub/clk [get_nets camera_clk_0_IBUF_BUFG]
+connect_debug_port dbg_hub/clk [get_nets pixclk_out]
