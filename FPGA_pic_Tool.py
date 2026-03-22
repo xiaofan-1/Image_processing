@@ -130,7 +130,7 @@ class FPGAImageToolApp:
                     self.label_size_l.config(text=f"尺寸: {width} x {height}", fg="green")
                     self.btn_generate_mem.config(state=tk.NORMAL)
             except Exception as e:
-                messagebox.showerror("错误", f"无法读取图片！\n\n报错: {e}")[cite: 4]
+                messagebox.showerror("错误", f"无法读取图片！\n\n报错: {e}")
                 self.btn_generate_mem.config(state=tk.DISABLED)
 
     def generate_mem_file(self):
@@ -219,9 +219,9 @@ class FPGAImageToolApp:
                 if "MIF" in target_file_type:
                     f.write("END;\n")
                     
-            messagebox.showinfo("成功", f"✅ FPGA 内存文件生成完毕！\n保存至: {out_path}")[cite: 4]
+            messagebox.showinfo("成功", f"✅ FPGA 内存文件生成完毕！\n保存至: {out_path}")
         except Exception as e:
-            messagebox.showerror("转换失败", f"发生错误：\n{e}")[cite: 4]
+            messagebox.showerror("转换失败", f"发生错误：\n{e}")
 
     def select_mem_file(self):
         file_path = filedialog.askopenfilename(
@@ -229,8 +229,8 @@ class FPGAImageToolApp:
         )
         if file_path:
             self.mem_path = file_path
-            self.label_path_r.config(text=f"文件: {os.path.basename(file_path)}", fg="black")[cite: 4]
-            self.btn_generate_img.config(state=tk.NORMAL)[cite: 4]
+            self.label_path_r.config(text=f"文件: {os.path.basename(file_path)}", fg="black")
+            self.btn_generate_img.config(state=tk.NORMAL)
 
     def generate_image(self):
         if not self.mem_path: return
@@ -261,7 +261,7 @@ class FPGAImageToolApp:
                     line = line.strip().upper()
                     # 过滤 COE/MIF 注释和头文件定义
                     if not line or line.startswith(';') or line.startswith('--') or line.startswith('%') or \
-                       'RADIX' in line or 'WIDTH' in line or 'DEPTH' in line or 'BEGIN' in line or line == 'END;':
+                       'RADIX' in line or 'VECTOR' in line or 'WIDTH' in line or 'DEPTH' in line or 'BEGIN' in line or line == 'END;':
                         continue
                         
                     # 针对 MIF 格式提取冒号后面的数据部分 (例如 "10 : A5;")
@@ -306,10 +306,10 @@ class FPGAImageToolApp:
                 img = img.convert('RGB')
 
             img.save(out_path)
-            messagebox.showinfo("成功", f"✅ 图像还原成功！\n保存至: {out_path}")[cite: 4]
+            messagebox.showinfo("成功", f"✅ 图像还原成功！\n保存至: {out_path}")
             
         except Exception as e:
-             messagebox.showerror("还原失败", f"处理时发生不可描述的错误：\n{e}")[cite: 4]
+             messagebox.showerror("还原失败", f"处理时发生不可描述的错误：\n{e}")
 
 if __name__ == "__main__":
     root = tk.Tk()
