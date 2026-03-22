@@ -71,34 +71,22 @@ wire                                 write_fifo_aclr;            // fifo Asynchr
 reg [31:0] pack_data;
 reg        pack_flag;
 wire       pack_wr_en;
-reg        write_en_reg = 1'b0;
-reg        write_en_reg0 = 1'b0;
-
-always @(posedge write_clk) begin
-    write_en_reg <= write_en;
-    write_en_reg0 <= write_en_reg;
-end
-
-wire write_en_reg_or_write_en = (write_en | write_en_reg) & (write_en | write_en_reg0) ;
 
 always @(posedge write_clk) begin
     if(write_fifo_aclr) begin
         pack_flag <= 1'b0;
         pack_data <= 32'b0;
     end
-    else if(write_en_reg_or_write_en) begin
+    else if(write_en) begin
         pack_flag <= ~pack_flag;
         if(pack_flag == 1'b0)
             pack_data[15:0]  <= write_data;  // 先存低16位
         else
             pack_data[31:16] <= write_data;  // 再存高16位
     end
-    else if((write_en | write_en_reg) == 1'b0)begin
-        pack_flag <= 1'b0;
-    end
 end
 
-assign pack_wr_en = (write_en_reg | write_en_reg0) & ~pack_flag & write_en_reg0;  // 每2个数据写一次FIFO
+assign pack_wr_en = write_en & pack_flag;  // 每2个数据写一次FIFO
 
 
 wr_fifo wr_fifo_inst (
@@ -165,11 +153,6 @@ frame_fifo_write #(
 wire [31:0] fifo_dout;    // FIFO出来32bit
 wire        fifo_rd_en;
 reg         sel;           // 选高16还是低16
-reg  [31:0] fifo_dout_r = 32'b0;
-
-always @(posedge read_clk) begin
-    fifo_dout_r <= fifo_dout;
-end
 
 always @(posedge read_clk) begin
     if(read_fifo_aclr)  
@@ -183,9 +166,9 @@ always @(posedge read_clk) begin
     if(read_fifo_aclr)
         read_data_r <= 16'd0;
     else
-        read_data_r <= fifo_rd_en ? fifo_dout[31:16] : fifo_dout[15:0];
+        read_data_r <= sel ? fifo_dout[31:16] : fifo_dout[15:0];
 end
-assign read_data = read_en ? read_data_r : 16'd0;
+assign read_data = read_data_r;
 
 assign fifo_rd_en = read_en & ~sel;  // 每2次read_en才真正读一次FIFO
 
