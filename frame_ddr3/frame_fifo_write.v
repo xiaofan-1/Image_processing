@@ -128,6 +128,11 @@ always@(posedge mem_clk or posedge rst) begin
                     wr_burst_len <= BURST_SIZE[BURST_BITS - 1:0];
                     wr_burst_req <= 1'b1;
                 end
+                else if((write_cnt == write_len_latch - BURST_SIZE) && (rdusedw >= BURST_SIZE - 2)) begin
+                    state <= S_WRITE_BURST;
+                    wr_burst_len <= BURST_SIZE[BURST_BITS - 1:0];
+                    wr_burst_req <= 1'b1;
+                end
             end
             
             S_WRITE_BURST: begin
