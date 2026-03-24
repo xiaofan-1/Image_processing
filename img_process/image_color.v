@@ -1,35 +1,43 @@
 `timescale 1ns / 1ps
 
 module image_color(
-    input	wire            clk	        ,
-    input	wire            rst_n       ,
-            
-    input   wire            hsync_i     ,//行信号
-    input   wire            vsync_i     ,//场信号
-    input   wire            de_i        ,
-    input   wire    [23:0]  data_i      ,//
-            
-    input   wire            key2_flag   ,
-    input   wire            key3_flag   ,
-    input   wire            key4_flag   ,
-    
-    input   wire    [10:0]  pixel_x     ,
-    input   wire    [10:0]  pixel_y     ,
+    input	wire            clk           ,
+    input	wire            rst_n         ,
+              
+    input   wire            hsync_i       ,//行信号
+    input   wire            vsync_i       ,//场信号
+    input   wire            de_i          ,
+    input   wire    [23:0]  data_i        ,//
+              
+    input   wire            key2_flag     ,
+    input   wire            key3_flag     ,
+    input   wire            key4_flag     ,
+      
+    input   wire    [10:0]  pixel_x       ,
+    input   wire    [10:0]  pixel_y       ,
     
     input   wire    [11:0]  frame_top     ,
     input   wire    [11:0]  frame_bottom  ,
     input   wire    [11:0]  frame_left    ,
     input   wire    [11:0]  frame_right   ,
 
-    input   wire    [11:0]  x_min_move  ,
-    input   wire    [11:0]  x_max_move  ,
-    input   wire    [11:0]  y_min_move  ,
-    input   wire    [11:0]  y_max_move  ,
+    input   wire    [11:0]  x_min_move    ,
+    input   wire    [11:0]  x_max_move    ,
+    input   wire    [11:0]  y_min_move    ,
+    input   wire    [11:0]  y_max_move    ,
+
+    (* MARK_DEBUG="true" *)output  reg     [11:0]  x_min_r       ,
+    (* MARK_DEBUG="true" *)output  reg     [11:0]  x_max_r       ,
+    (* MARK_DEBUG="true" *)output  reg     [11:0]  y_min_r       ,
+    (* MARK_DEBUG="true" *)output  reg     [11:0]  y_max_r       ,
     
-    output  wire            hsync_o     ,
-    output  wire            vsync_o     ,
-    (* MARK_DEBUG="true" *)output  wire            de_o        ,
-    (* MARK_DEBUG="true" *)output  reg     [23:0]  data_o      //
+    (* MARK_DEBUG="true" *)output  wire [11:0] pixle_x_reg   ,
+    (* MARK_DEBUG="true" *)output  wire [11:0] pixle_y_reg   ,
+    
+    output  wire            hsync_o       ,
+    output  wire            vsync_o       ,
+    (* MARK_DEBUG="true" *)output  wire            de_o          ,
+    (* MARK_DEBUG="true" *)output  reg     [23:0]  data_o        //
     );
     
 wire	[2:0]	color_threshold_select	;
@@ -40,57 +48,86 @@ wire        	hs_reg;
 wire        	vs_reg;
 (* MARK_DEBUG="true" *)wire        	de_reg;
 
-reg [23:0] rgb_data_pipe [28:0];
-reg [11:0] pixel_x_pipe [28:0];
-reg [11:0] pixel_y_pipe [28:0];
-reg [7:0]  data_color_pipe [28:0];
-reg        de_reg_pipe [28:0];
-integer i;
+reg [23:0] rgb_data_pipe [30:0];
+reg [11:0] pixel_x_pipe [18:0];
+reg [11:0] pixel_y_pipe [18:0];
+reg [7:0]  data_color_pipe [30:0];
+reg        de_reg_pipe [30:0];
 
+reg        hsync_i_reg_pipe[30:0];
+reg        vsync_i_reg_pipe[30:0];
+reg        de_i_reg_pipe   [30:0];
+
+integer i;
 always @(posedge clk or negedge rst_n) begin
     if(!rst_n) begin
-        for (i = 0; i < 29; i = i + 1) begin
+        for (i = 0; i < 31; i = i + 1) begin
             rgb_data_pipe[i] <= 24'h0;
-            pixel_x_pipe[i] <= 12'h0;
-            pixel_y_pipe[i] <= 12'h0;
-            data_color_pipe[i] <= 8'h0;
+            hsync_i_reg_pipe[i] <= 1'b0;
+            vsync_i_reg_pipe[i] <= 1'b0;
+            de_i_reg_pipe[i] <= 1'b0;
             de_reg_pipe[i] <= 1'b0;
+            data_color_pipe[i] <= 8'h0;
         end
     end
     else begin
         rgb_data_pipe[0] <= data_i;
+        hsync_i_reg_pipe[0] <= hsync_i;
+        vsync_i_reg_pipe[0] <= vsync_i;
+        de_i_reg_pipe[0] <= de_i;
+        de_reg_pipe[0] <= de_reg;
+        data_color_pipe[0] <= data_color;
+        for (i = 1; i < 31; i = i + 1) begin
+            rgb_data_pipe[i] <= rgb_data_pipe[i-1];
+            hsync_i_reg_pipe[i] <= hsync_i_reg_pipe[i-1];
+            vsync_i_reg_pipe[i] <= vsync_i_reg_pipe[i-1];
+            de_i_reg_pipe[i] <= de_i_reg_pipe[i-1];
+            de_reg_pipe[i] <= de_reg_pipe[i-1];
+            data_color_pipe[i] <= data_color_pipe[i-1];
+        end
+    end
+end
+
+integer j;
+
+always @(posedge clk or negedge rst_n) begin
+    if(!rst_n) begin
+        for (j = 0; j < 19; j = j + 1) begin
+            pixel_x_pipe[j] <= 12'h0;
+            pixel_y_pipe[j] <= 12'h0;
+        end
+    end
+    else begin
         pixel_x_pipe[0] <= pixel_x;
         pixel_y_pipe[0] <= pixel_y;
-        data_color_pipe[0] <= data_color;
-        de_reg_pipe[0] <= de_reg;
-        for (i = 1; i < 29; i = i + 1) begin
-            rgb_data_pipe[i] <= rgb_data_pipe[i-1];
-            pixel_x_pipe[i] <= pixel_x_pipe[i-1];
-            pixel_y_pipe[i] <= pixel_y_pipe[i-1];
-            data_color_pipe[i] <= data_color_pipe[i-1];
-            de_reg_pipe[i] <= de_reg_pipe[i-1];
+        for (j = 1; j < 19; j = j + 1) begin
+            pixel_x_pipe[j] <= pixel_x_pipe[j-1];
+            pixel_y_pipe[j] <= pixel_y_pipe[j-1];
         end
     end
 end
 
 (* MARK_DEBUG="true" *)wire [23:0] rgb_data_reg;
-(* MARK_DEBUG="true" *)wire [11:0] pixle_x_reg;
-(* MARK_DEBUG="true" *)wire [11:0] pixle_y_reg;
+// (* MARK_DEBUG="true" *)wire [11:0] pixle_x_reg;
+// (* MARK_DEBUG="true" *)wire [11:0] pixle_y_reg;
 
 (* MARK_DEBUG="true" *)wire [11:0] pixel_x_reg_font;
 (* MARK_DEBUG="true" *)wire [11:0] pixel_y_reg_font;
-wire [7:0]  data_color_reg;
-wire        de_reg_font;
+(* MARK_DEBUG="true" *)wire [7:0]  data_color_reg;
+(* MARK_DEBUG="true" *)wire        de_reg_font;
 
-assign rgb_data_reg = rgb_data_pipe[15];
-assign pixle_x_reg = pixel_x_pipe[16];
-assign pixle_y_reg = pixel_y_pipe[16];
-assign data_color_reg = data_color_pipe[0];
-assign de_reg_font = de_reg_pipe[0];
+assign rgb_data_reg = rgb_data_pipe[27];
+assign pixle_x_reg = pixel_x_pipe[2];
+assign pixle_y_reg = pixel_y_pipe[2];
+assign data_color_reg = data_color_pipe[13];
+assign de_reg_font = de_reg_pipe[13];
 
-assign pixel_x_reg_font = pixel_x_pipe[13];
-assign pixel_y_reg_font = pixel_y_pipe[13];
+assign pixel_x_reg_font = pixel_x_pipe[0];
+assign pixel_y_reg_font = pixel_y_pipe[0];
 
+assign hsync_o = hsync_i_reg_pipe[28];
+assign vsync_o = vsync_i_reg_pipe[28];
+assign de_o    = de_i_reg_pipe   [28];
 
 // colour_extract_ctrl入口选择参数
 reg	[2:0]	SELECT_BIT	;
@@ -116,10 +153,10 @@ wire end_x = add_x && x == pix_h - 1;
 wire add_y = end_x;
 wire end_y = add_y && y == pix_v - 1;
 
-reg  [11:0] x_min_r;
-reg  [11:0] x_max_r;
-reg  [11:0] y_min_r;
-reg  [11:0] y_max_r;
+// reg  [11:0] x_min_r;
+// reg  [11:0] x_max_r;
+// reg  [11:0] y_min_r;
+// reg  [11:0] y_max_r;
 
 //==============行计数器====================
 always @(posedge clk or negedge rst_n) begin
@@ -282,10 +319,10 @@ always @(posedge clk or negedge rst_n) begin
     //     data_o <= 24'hff_00_00; // 横线
     // else if ((pixle_x_reg == x_min_move || pixle_x_reg == x_max_move) && (pixle_y_reg >= y_min_move && pixle_y_reg <= y_max_move))
     //     data_o <= 24'hff_00_00; // 竖线
-    else if ((pixle_y_reg == y_min_r || pixle_y_reg == y_max_r) && (pixle_x_reg >= x_min_r && pixle_x_reg <= x_max_r))
-        data_o <= 24'h00_ff_00; // 横线
-    else if ((pixle_x_reg == x_min_r || pixle_x_reg == x_max_r) && (pixle_y_reg >= y_min_r && pixle_y_reg <= y_max_r))
-        data_o <= 24'h00_ff_00; // 竖线
+    // else if ((pixle_y_reg == y_min_r || pixle_y_reg == y_max_r) && (pixle_x_reg >= x_min_r && pixle_x_reg <= x_max_r))
+    //     data_o <= 24'h00_ff_00; // 横线
+    // else if ((pixle_x_reg == x_min_r || pixle_x_reg == x_max_r) && (pixle_y_reg >= y_min_r && pixle_y_reg <= y_max_r))
+    //     data_o <= 24'h00_ff_00; // 竖线
 	else if(data_color_reg == 8'h0 && pixle_x_reg > frame_left && pixle_x_reg < frame_right && pixle_y_reg > frame_top && pixle_y_reg < frame_bottom)
 		case(color_threshold_select)
 			4'd1:data_o <= 24'hfe_00_00;
@@ -297,27 +334,6 @@ always @(posedge clk or negedge rst_n) begin
 	else
 		data_o <= rgb_data_reg;
 end
-
-//==============信号同步====================
-reg  [3:0]  hsync_i_reg;
-reg  [3:0]  vsync_i_reg;
-reg  [3:0]  de_i_reg   ;
-always @(posedge clk or negedge rst_n) begin
-    if(!rst_n) begin
-        hsync_i_reg <= 4'b0;
-        vsync_i_reg <= 4'b0;
-        de_i_reg    <= 4'b0;
-    end
-    else begin  
-        hsync_i_reg <= {hsync_i_reg[2:0], hs_reg};
-        vsync_i_reg <= {vsync_i_reg[2:0], vs_reg};
-        de_i_reg    <= {de_i_reg   [2:0], de_reg};
-    end
-end
-
-assign hsync_o = hsync_i_reg[3];
-assign vsync_o = vsync_i_reg[3];
-assign de_o    = de_i_reg   [3];
 
 /***************************************************************
 模块功能 ： 通过按键调节阈值，可以适应不同光环境

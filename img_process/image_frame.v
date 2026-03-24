@@ -19,10 +19,10 @@ module image_frame(
 
     //输出                             
     output  wire        pixel_valid   ,
-    output  reg  [11:0] x_min_r       ,
-    output  reg  [11:0] x_max_r       ,
-    output  reg  [11:0] y_min_r       ,
-    output  reg  [11:0] y_max_r       ,
+    (* MARK_DEBUG="true" *)output  reg  [11:0] x_min_r       ,
+    (* MARK_DEBUG="true" *)output  reg  [11:0] x_max_r       ,
+    (* MARK_DEBUG="true" *)output  reg  [11:0] y_min_r       ,
+    (* MARK_DEBUG="true" *)output  reg  [11:0] y_max_r       ,
     (* MARK_DEBUG="true" *)output  wire [11:0] pixle_x_reg   ,
     (* MARK_DEBUG="true" *)output  wire [11:0] pixle_y_reg   ,
     output  wire        hsync_o       ,

@@ -73,8 +73,6 @@ always @(posedge sys_clk or negedge sys_rst_n) begin
     end
     else begin
         last_pic_d1 <= read_data[15:8];
-        
-        // 把当前新进来的像素也塞进流水线故意慢走 2 拍，去陪等 DDR
         new_pic_d1   <= new_pic;
         new_pic_d2   <= new_pic_d1;
         de_i_d1      <= de_i;
