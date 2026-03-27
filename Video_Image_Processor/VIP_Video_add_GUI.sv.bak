@@ -1,0 +1,450 @@
+module VIP_Video_add_GUI
+#(
+	parameter	[9:0]	IMG_HDISP = 10'd640,//640*480
+	parameter	[9:0]	IMG_VDISP = 10'd480
+)
+(
+	//global clock
+	input				clk,  				 
+	input				rst_n,				 
+                                             
+	//Image data prepred to be processd      
+	input				per_frame_vsync,	 
+	input				per_frame_href ,	 
+	input				per_frame_clken,	 
+	input		[7:0]	per_img_red		,		 
+	input		[7:0]	per_img_green	,		 
+	input		[7:0]	per_img_blue	,		 
+                                             
+	input  		[3:0] 	target_color_num[6:0],   
+    input       [6:0] 	target_color_valid,     
+                
+	//Image data has been processd           
+	output reg			post_frame_vsync,	 
+	output reg			post_frame_href ,	 
+	output reg			post_frame_clken,	 
+	output wire	[7:0]	post_img_red	,		 
+	output wire	[7:0]	post_img_green	,		 
+	output wire	[7:0]	post_img_blue	  	
+);
+
+localparam BACK_COLOR  = 24'b11111111_11111111_11111111;     //背景色，白色
+localparam CHAR_COLOR  = 24'b00000000_00000000_00000000;     //字符颜色，黑色
+
+localparam HANZI_POS_X      = 11'd20;   //汉字起始点横坐标
+localparam CHAR_POS_X       = 11'd160;  //字符区域起始点横坐标
+
+localparam CHAR_POS_Y_0     = 11'd120;  //字符起始点纵坐标
+localparam CHAR_POS_Y_1     = 11'd160;     
+localparam CHAR_POS_Y_2     = 11'd200;     
+localparam CHAR_POS_Y_3     = 11'd240;     
+localparam CHAR_POS_Y_4     = 11'd280;     
+localparam CHAR_POS_Y_5     = 11'd320;     
+localparam CHAR_POS_Y_6     = 11'd360;     
+localparam CHAR_POS_Y_7     = 11'd400;     
+
+localparam CHAR_WIDTH   = 11'd16;       //字符区域宽度
+localparam CHAR_HEIGHT  = 11'd32;       //字符区域高度
+localparam HANZI_WIDTH  = 11'd128;      //汉字宽度,4个字符:32*4
+localparam HANZI_HEIGHT = 11'd32;       //汉字高度
+
+reg  [511:0] char  [9:0] ;      //数字“0-9”,16p x 32p 
+reg  [127:0] CHINA_0[31:0];     //汉字"苹果红色"
+reg  [127:0] CHINA_1[31:0];     //汉字"橘子橙色"
+reg  [127:0] CHINA_2[31:0];     //汉字"梨子黄色"
+reg  [127:0] CHINA_3[31:0];     //汉字"冬枣绿色"
+reg  [127:0] CHINA_4[31:0];     //汉字" "
+reg  [127:0] CHINA_5[31:0];     //汉字" "
+reg  [127:0] CHINA_6[31:0];     //汉字" "
+
+reg [23:0] gui_data;
+
+
+reg [9:0]  	x_cnt;
+reg [9:0]   y_cnt;
+
+//------------------------------------------
+//对输入的像素进行 行/场 方向计数，得到其纵横坐标。
+always@(posedge clk or negedge rst_n)
+begin
+	if(!rst_n)
+		begin
+			x_cnt <= 10'd0;
+			y_cnt <= 10'd0;
+		end
+	else
+		if(per_frame_vsync)begin
+			x_cnt <= 10'd0;
+			y_cnt <= 10'd0;
+		end
+		else if(per_frame_clken) begin
+			if(x_cnt < IMG_HDISP - 1) begin
+				x_cnt <= x_cnt + 1'b1;
+				y_cnt <= y_cnt;
+			end
+			else begin
+				x_cnt <= 10'd0;
+				y_cnt <= y_cnt + 1'b1;
+			end
+		end
+end
+
+//------------------------------------------
+reg	[7:0]	per_img_red_r	 ;		 
+reg	[7:0]	per_img_green_r	 ;		 
+reg	[7:0]	per_img_blue_r	 ;	
+
+always@(posedge clk or negedge rst_n)
+begin
+	if(!rst_n)
+		begin	
+		per_img_red_r	 	<= 0;
+		per_img_green_r	 	<= 0;
+		per_img_blue_r	 	<= 0;
+		
+		post_frame_vsync 	<= 0;
+		post_frame_href 	<= 0;
+		post_frame_clken 	<= 0;		
+		end
+	else begin
+		post_frame_vsync 	<= 	per_frame_vsync		;
+		post_frame_href 	<= 	per_frame_href		;
+		post_frame_clken 	<= 	per_frame_clken		;
+		
+		per_img_red_r	 	<=  per_img_red		;
+		per_img_green_r	 	<=  per_img_green	;
+		per_img_blue_r	 	<=  per_img_blue	;
+		end
+end
+
+assign	post_img_red	=	(gui_data == CHAR_COLOR) ? 8'd255 :	per_img_red_r	 ;			
+assign	post_img_green	=	(gui_data == CHAR_COLOR) ? 8'd000 :	per_img_green_r	 ;		
+assign	post_img_blue	=	(gui_data == CHAR_COLOR) ? 8'd000 : per_img_blue_r	 ;
+
+
+//给不同的区域赋值不同的像素数据
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n)  begin
+         gui_data   <= BACK_COLOR ;
+    end
+    //显示数字
+	else if((x_cnt >= CHAR_POS_X)   && (x_cnt < CHAR_POS_X + CHAR_WIDTH*1)
+		 && (y_cnt >= CHAR_POS_Y_0) && (y_cnt < CHAR_POS_Y_0 + CHAR_HEIGHT)) begin
+		if(char [target_color_num[0]] [ (CHAR_HEIGHT+CHAR_POS_Y_0 - y_cnt)*CHAR_WIDTH - ((x_cnt-CHAR_POS_X)%CHAR_WIDTH) -1 ] )
+			gui_data <= CHAR_COLOR;         //显示字符
+		else            
+			gui_data <= BACK_COLOR;          //显示字符区域背景
+	end
+    //显示数字
+	else if((x_cnt >= CHAR_POS_X)   && (x_cnt < CHAR_POS_X + CHAR_WIDTH*1)
+		 && (y_cnt >= CHAR_POS_Y_1) && (y_cnt < CHAR_POS_Y_1 + CHAR_HEIGHT)) begin
+		if(char [target_color_num[1]] [ (CHAR_HEIGHT+CHAR_POS_Y_1 - y_cnt)*CHAR_WIDTH - ((x_cnt-CHAR_POS_X)%CHAR_WIDTH) -1 ] )
+			gui_data <= CHAR_COLOR;         //显示字符
+		else            
+			gui_data <= BACK_COLOR;          //显示字符区域背景
+	end
+    //显示数字
+	else if((x_cnt >= CHAR_POS_X)   && (x_cnt < CHAR_POS_X + CHAR_WIDTH*1)
+		 && (y_cnt >= CHAR_POS_Y_2) && (y_cnt < CHAR_POS_Y_2 + CHAR_HEIGHT)) begin
+		if(char [target_color_num[2]] [ (CHAR_HEIGHT+CHAR_POS_Y_2 - y_cnt)*CHAR_WIDTH - ((x_cnt-CHAR_POS_X)%CHAR_WIDTH) -1 ] )
+			gui_data <= CHAR_COLOR;         //显示字符
+		else            
+			gui_data <= BACK_COLOR;          //显示字符区域背景
+	end
+    //显示数字
+	else if((x_cnt >= CHAR_POS_X)   && (x_cnt < CHAR_POS_X + CHAR_WIDTH*1)
+		 && (y_cnt >= CHAR_POS_Y_3) && (y_cnt < CHAR_POS_Y_3 + CHAR_HEIGHT)) begin
+		if(char [target_color_num[3]] [ (CHAR_HEIGHT+CHAR_POS_Y_3 - y_cnt)*CHAR_WIDTH - ((x_cnt-CHAR_POS_X)%CHAR_WIDTH) -1 ] )
+			gui_data <= CHAR_COLOR;         //显示字符
+		else            
+			gui_data <= BACK_COLOR;          //显示字符区域背景
+	end
+    //显示数字
+	else if((x_cnt >= CHAR_POS_X)   && (x_cnt < CHAR_POS_X + CHAR_WIDTH*1)
+		 && (y_cnt >= CHAR_POS_Y_4) && (y_cnt < CHAR_POS_Y_4 + CHAR_HEIGHT)) begin
+		if(char [target_color_num[4]] [ (CHAR_HEIGHT+CHAR_POS_Y_4 - y_cnt)*CHAR_WIDTH - ((x_cnt-CHAR_POS_X)%CHAR_WIDTH) -1 ] )
+			gui_data <= CHAR_COLOR;         //显示字符
+		else            
+			gui_data <= BACK_COLOR;          //显示字符区域背景
+	end
+/*    //显示数字
+	else if((x_cnt >= CHAR_POS_X)   && (x_cnt < CHAR_POS_X + CHAR_WIDTH*1)
+		 && (y_cnt >= CHAR_POS_Y_5) && (y_cnt < CHAR_POS_Y_5 + CHAR_HEIGHT)) begin
+		if(char [target_color_num[5]] [ (CHAR_HEIGHT+CHAR_POS_Y_5 - y_cnt)*CHAR_WIDTH - ((x_cnt-CHAR_POS_X)%CHAR_WIDTH) -1 ] )
+			gui_data <= CHAR_COLOR;         //显示字符
+		else            
+			gui_data <= BACK_COLOR;          //显示字符区域背景
+	end
+    //显示数字
+	else if((x_cnt >= CHAR_POS_X)   && (x_cnt < CHAR_POS_X + CHAR_WIDTH*1)
+		 && (y_cnt >= CHAR_POS_Y_6) && (y_cnt < CHAR_POS_Y_6 + CHAR_HEIGHT)) begin
+		if(char [target_color_num[6]] [ (CHAR_HEIGHT+CHAR_POS_Y_6 - y_cnt)*CHAR_WIDTH - ((x_cnt-CHAR_POS_X)%CHAR_WIDTH) -1 ] )
+			gui_data <= CHAR_COLOR;         //显示字符
+		else            
+			gui_data <= BACK_COLOR;          //显示字符区域背景
+	end
+*/	
+    //显示汉字
+    else if((x_cnt >= HANZI_POS_X) && (x_cnt < HANZI_POS_X + HANZI_WIDTH)	
+         && (y_cnt >= CHAR_POS_Y_0) && (y_cnt < CHAR_POS_Y_0 + HANZI_HEIGHT)) begin	
+        if(CHINA_0[y_cnt - CHAR_POS_Y_0][HANZI_POS_X + HANZI_WIDTH - x_cnt -1'b1])	
+            gui_data <= CHAR_COLOR;    //显示字符	
+        else	
+            gui_data <= BACK_COLOR;    //显示字符区域的背景色	
+    end	
+    //显示汉字
+    else if((x_cnt >= HANZI_POS_X) && (x_cnt < HANZI_POS_X + HANZI_WIDTH)	
+         && (y_cnt >= CHAR_POS_Y_1) && (y_cnt < CHAR_POS_Y_1 + HANZI_HEIGHT)) begin	
+        if(CHINA_1[y_cnt - CHAR_POS_Y_1][HANZI_POS_X + HANZI_WIDTH - x_cnt -1'b1])	
+            gui_data <= CHAR_COLOR;    //显示字符	
+        else	
+            gui_data <= BACK_COLOR;    //显示字符区域的背景色	
+    end	
+    //显示汉字
+    else if((x_cnt >= HANZI_POS_X) && (x_cnt < HANZI_POS_X + HANZI_WIDTH)	
+         && (y_cnt >= CHAR_POS_Y_2) && (y_cnt < CHAR_POS_Y_2 + HANZI_HEIGHT)) begin	
+        if(CHINA_2[y_cnt - CHAR_POS_Y_2][HANZI_POS_X + HANZI_WIDTH - x_cnt -1'b1])	
+            gui_data <= CHAR_COLOR;    //显示字符	
+        else	
+            gui_data <= BACK_COLOR;    //显示字符区域的背景色	
+    end	
+    //显示汉字
+    else if((x_cnt >= HANZI_POS_X) && (x_cnt < HANZI_POS_X + HANZI_WIDTH)	
+         && (y_cnt >= CHAR_POS_Y_3) && (y_cnt < CHAR_POS_Y_3 + HANZI_HEIGHT)) begin	
+        if(CHINA_3[y_cnt - CHAR_POS_Y_3][HANZI_POS_X + HANZI_WIDTH - x_cnt -1'b1])	
+            gui_data <= CHAR_COLOR;    //显示字符	
+        else	
+            gui_data <= BACK_COLOR;    //显示字符区域的背景色	
+    end	
+    //显示汉字
+    else if((x_cnt >= HANZI_POS_X) && (x_cnt < HANZI_POS_X + HANZI_WIDTH)	
+         && (y_cnt >= CHAR_POS_Y_4) && (y_cnt < CHAR_POS_Y_4 + HANZI_HEIGHT)) begin	
+        if(CHINA_4[y_cnt - CHAR_POS_Y_4][HANZI_POS_X + HANZI_WIDTH - x_cnt -1'b1])	
+            gui_data <= CHAR_COLOR;    //显示字符	
+        else	
+            gui_data <= BACK_COLOR;    //显示字符区域的背景色	
+    end	
+/*    //显示汉字
+    else if((x_cnt >= HANZI_POS_X) && (x_cnt < HANZI_POS_X + HANZI_WIDTH)	
+         && (y_cnt >= CHAR_POS_Y_5) && (y_cnt < CHAR_POS_Y_5 + HANZI_HEIGHT)) begin	
+        if(CHINA_5[y_cnt - CHAR_POS_Y_5][HANZI_POS_X + HANZI_WIDTH - x_cnt -1'b1])	
+            gui_data <= CHAR_COLOR;    //显示字符	
+        else	
+            gui_data <= BACK_COLOR;    //显示字符区域的背景色	
+    end	
+    //显示汉字
+    else if((x_cnt >= HANZI_POS_X) && (x_cnt < HANZI_POS_X + HANZI_WIDTH)	
+         && (y_cnt >= CHAR_POS_Y_6) && (y_cnt < CHAR_POS_Y_6 + HANZI_HEIGHT)) begin	
+        if(CHINA_6[y_cnt - CHAR_POS_Y_6][HANZI_POS_X + HANZI_WIDTH - x_cnt -1'b1])	
+            gui_data <= CHAR_COLOR;    //显示字符	
+        else	
+            gui_data <= BACK_COLOR;    //显示字符区域的背景色	
+    end	
+*/	
+	else begin
+		gui_data   <= BACK_COLOR ;
+	end
+end
+
+///////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
+//                                  字库
+///////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
+
+
+ //给字符数组赋值，用于存储字模数据 数字“0-9”
+always @(posedge clk) begin
+    char[0 ]  <= 512'h00000000000000000000000007E00FF01C383C3C3C1C781C781E781E781E781E781E781E781E781E781E781E781C383C3C3C1C380FF007E00000000000000000; // "0"
+    char[1 ]  <= 512'h000000000000000000000000008001801F800180018001800180018001800180018001800180018001800180018001800180018003C01FF80000000000000000; // "1"
+    char[2 ]  <= 512'h00000000000000000000000007E008381018200C200C300C300C000C001800180030006000C0018003000200040408041004200C3FF83FF80000000000000000; // "2"
+    char[3 ]  <= 512'h00000000000000000000000007C018603030301830183018001800180030006003C0007000180008000C000C300C300C30083018183007C00000000000000000; // "3"
+    char[4 ]  <= 512'h0000000000000000000000000060006000E000E0016001600260046004600860086010603060206040607FFC0060006000600060006003FC0000000000000000; // "4"
+    char[5 ]  <= 512'h0000000000000000000000000FFC0FFC10001000100010001000100013E0143018181008000C000C000C000C300C300C20182018183007C00000000000000000; // "5"
+    char[6 ]  <= 512'h00000000000000000000000001E006180C180818180010001000300033E0363038183808300C300C300C300C300C180C18080C180E3003E00000000000000000; // "6"
+    char[7 ]  <= 512'h0000000000000000000000001FFC1FFC100830102010202000200040004000400080008001000100010001000300030003000300030003000000000000000000; // "7"
+    char[8 ]  <= 512'h00000000000000000000000007E00C301818300C300C300C380C38081E180F2007C018F030783038601C600C600C600C600C3018183007C00000000000000000; // "8"
+    char[9 ]  <= 512'h00000000000000000000000007C01820301030186008600C600C600C600C600C701C302C186C0F8C000C0018001800103030306030C00F800000000000000000; // "9"
+end
+
+ //给字符数组赋值，用于存储字模数据 汉字“苹果红色”
+always @(posedge clk) begin
+    CHINA_0[0 ]  <= 128'h00000000000000000000000000000000;
+    CHINA_0[1 ]  <= 128'h00000000000000000000000000100000;
+    CHINA_0[2 ]  <= 128'h00101000000000800080000000180000;
+    CHINA_0[3 ]  <= 128'h001C1C0001FFFFC000E0000000380000;
+    CHINA_0[4 ]  <= 128'h001818100181808000C0000000301800;
+    CHINA_0[5 ]  <= 128'h001818380181808001800000007FFC00;
+    CHINA_0[6 ]  <= 128'h3FFFFFFC018180800180003000E03800;
+    CHINA_0[7 ]  <= 128'h00181800018180800307FFF800C03000;
+    CHINA_0[8 ]  <= 128'h0018180001FFFF8002080C0001806000;
+    CHINA_0[9 ]  <= 128'h0018184001818080060C0C0003004000;
+    CHINA_0[10]  <= 128'h001010C00181808004180C0006008080;
+    CHINA_0[11]  <= 128'h07FFFFE00181808008180C0007FFFFC0;
+    CHINA_0[12]  <= 128'h000180000181808010B00C000B018080;
+    CHINA_0[13]  <= 128'h0001800001FFFF803F600C0013018080;
+    CHINA_0[14]  <= 128'h008181800181808010400C0023018080;
+    CHINA_0[15]  <= 128'h004183800101800000800C0003018080;
+    CHINA_0[16]  <= 128'h006182000001801001800C0003018080;
+    CHINA_0[17]  <= 128'h003186000001803803000C0003018080;
+    CHINA_0[18]  <= 128'h00318C001FFFFFFC06040C0003FFFF80;
+    CHINA_0[19]  <= 128'h003188000007C0000C780C0003000080;
+    CHINA_0[20]  <= 128'h00219038000FA0001F800C0003000000;
+    CHINA_0[21]  <= 128'h3FFFFFFC000DA0001C000C0003000000;
+    CHINA_0[22]  <= 128'h000180000019980008000C0003000008;
+    CHINA_0[23]  <= 128'h0001800000318C0000020C0003000008;
+    CHINA_0[24]  <= 128'h0001800000618600001C0C0003000008;
+    CHINA_0[25]  <= 128'h0001800001C1838000E00C0003000008;
+    CHINA_0[26]  <= 128'h00018000030181E00F800C1803000008;
+    CHINA_0[27]  <= 128'h00018000060180FC1C1FFFFC0300000C;
+    CHINA_0[28]  <= 128'h00018000180180300800000003FFFFFC;
+    CHINA_0[29]  <= 128'h00018000200180000000000001FFFFF8;
+    CHINA_0[30]  <= 128'h00010000000100000000000000000000;
+    CHINA_0[31]  <= 128'h00000000000000000000000000000000;
+end
+
+ //给字符数组赋值，用于存储字模数据 汉字“橘子橙色”
+always @(posedge clk) begin
+    CHINA_1[0 ]  <= 128'h00000000000000000000000000000000;
+    CHINA_1[1 ]  <= 128'h00000000000000000000000000100000;
+    CHINA_1[2 ]  <= 128'h02000000000000000200000000180000;
+    CHINA_1[3 ]  <= 128'h03800020000000400300484000380000;
+    CHINA_1[4 ]  <= 128'h0303FFF003FFFFE0031FF8E000301800;
+    CHINA_1[5 ]  <= 128'h030000C0000001F003006980007FFC00;
+    CHINA_1[6 ]  <= 128'h03002300000003800310C61000E03800;
+    CHINA_1[7 ]  <= 128'h03001C0000000600030CC43800C03000;
+    CHINA_1[8 ]  <= 128'h03400E1000000C000346866001806000;
+    CHINA_1[9 ]  <= 128'h3FFFFFF8000030003FE582C003004000;
+    CHINA_1[10]  <= 128'h03003C30000160000301010006008080;
+    CHINA_1[11]  <= 128'h03006C200001C0000303058007FFFFC0;
+    CHINA_1[12]  <= 128'h0700CC400001C0000382FFC00B018080;
+    CHINA_1[13]  <= 128'h07030C00000180100766007013018080;
+    CHINA_1[14]  <= 128'h078C7C0000018038076C003C23018080;
+    CHINA_1[15]  <= 128'h07701C003FFFFFFC072C009C03018080;
+    CHINA_1[16]  <= 128'h0F600800000180000F13FFC003018080;
+    CHINA_1[17]  <= 128'h0B27FFF8000180000B22008003018080;
+    CHINA_1[18]  <= 128'h1B062018000180000BC2008003FFFF80;
+    CHINA_1[19]  <= 128'h13063398000180001302008003000080;
+    CHINA_1[20]  <= 128'h130640D8000180001302008003000000;
+    CHINA_1[21]  <= 128'h2306C058000180002303FF8003000000;
+    CHINA_1[22]  <= 128'h43073F18000180002302030003000008;
+    CHINA_1[23]  <= 128'h43062318000180004302038003000008;
+    CHINA_1[24]  <= 128'h03062318000180000301030003000008;
+    CHINA_1[25]  <= 128'h03062318000180000300820003000008;
+    CHINA_1[26]  <= 128'h03063F18000180000300C20003000008;
+    CHINA_1[27]  <= 128'h0306231800218000030084180300000C;
+    CHINA_1[28]  <= 128'h03060198001F8000037FFFFC03FFFFFC;
+    CHINA_1[29]  <= 128'h03060070000700000300000001FFFFF8;
+    CHINA_1[30]  <= 128'h02040020000200000200000000000000;
+    CHINA_1[31]  <= 128'h00000000000000000000000000000000;
+end
+
+ //给字符数组赋值，用于存储字模数据 汉字“梨子黄色”
+always @(posedge clk) begin
+    CHINA_2[0 ]  <= 128'h00000000000000000000000000000000;
+    CHINA_2[1 ]  <= 128'h00000000000000000000000000100000;
+    CHINA_2[2 ]  <= 128'h00000040000000000010100000180000;
+    CHINA_2[3 ]  <= 128'h000600700000004000181C0000380000;
+    CHINA_2[4 ]  <= 128'h003F006003FFFFE00010180000301800;
+    CHINA_2[5 ]  <= 128'h07F01860000001F000101820007FFC00;
+    CHINA_2[6 ]  <= 128'h00301860000003800FFFFFF000E03800;
+    CHINA_2[7 ]  <= 128'h00301860000006000010180000C03000;
+    CHINA_2[8 ]  <= 128'h0031186000000C000010180001806000;
+    CHINA_2[9 ]  <= 128'h3FFF9860000030000010180003004000;
+    CHINA_2[10]  <= 128'h00F01860000160000010181806008080;
+    CHINA_2[11]  <= 128'h00F018600001C0007FFFFFFC07FFFFC0;
+    CHINA_2[12]  <= 128'h01BE18600001C000000180000B018080;
+    CHINA_2[13]  <= 128'h03371860000180100001808013018080;
+    CHINA_2[14]  <= 128'h063300600001803801FFFFC023018080;
+    CHINA_2[15]  <= 128'h0C3002603FFFFFFC0181818003018080;
+    CHINA_2[16]  <= 128'h183101E0000180000181818003018080;
+    CHINA_2[17]  <= 128'h2031C040000180000181818003018080;
+    CHINA_2[18]  <= 128'h000180100001800001FFFF8003FFFF80;
+    CHINA_2[19]  <= 128'h00018038000180000181818003000080;
+    CHINA_2[20]  <= 128'h3FFFFFFC000180000181818003000000;
+    CHINA_2[21]  <= 128'h0007C000000180000181818003000000;
+    CHINA_2[22]  <= 128'h000DA000000180000181818003000008;
+    CHINA_2[23]  <= 128'h001990000001800001FFFF8003000008;
+    CHINA_2[24]  <= 128'h00318C00000180000198018003000008;
+    CHINA_2[25]  <= 128'h0061870000018000003C180003000008;
+    CHINA_2[26]  <= 128'h01C183C0000180000070070003000008;
+    CHINA_2[27]  <= 128'h030180FE0021800001C001E00300000C;
+    CHINA_2[28]  <= 128'h0C018038001F8000030000F003FFFFFC;
+    CHINA_2[29]  <= 128'h30018000000700000C00003001FFFFF8;
+    CHINA_2[30]  <= 128'h00010000000200003000001000000000;
+    CHINA_2[31]  <= 128'h00000000000000000000000000000000;
+end
+
+ //给字符数组赋值，用于存储字模数据 汉字“冬枣绿色”
+always @(posedge clk) begin
+    CHINA_3[0 ]  <= 128'h00000000000000000000000000000000;
+    CHINA_3[1 ]  <= 128'h00000000000000000000000000100000;
+    CHINA_3[2 ]  <= 128'h001C0000000100000100000000180000;
+    CHINA_3[3 ]  <= 128'h001E00000001C00001C0004000380000;
+    CHINA_3[4 ]  <= 128'h003C0000000180000187FFE000301800;
+    CHINA_3[5 ]  <= 128'h0038070000018030030000C0007FFC00;
+    CHINA_3[6 ]  <= 128'h007FFF801FFFFFF8020000C000E03800;
+    CHINA_3[7 ]  <= 128'h00700F8000018000060000C000C03000;
+    CHINA_3[8 ]  <= 128'h00F81E00000180800C39FFC001806000;
+    CHINA_3[9 ]  <= 128'h01FC1E0001FFFFC0083000C003004000;
+    CHINA_3[10]  <= 128'h01CE3C0001818180106000C006008080;
+    CHINA_3[11]  <= 128'h038F7800018181803FE000C007FFFFC0;
+    CHINA_3[12]  <= 128'h0707F0000183818038C000C80B018080;
+    CHINA_3[13]  <= 128'h0E03E0000187C180009FFFFC13018080;
+    CHINA_3[14]  <= 128'h1C07E000018DA1800100180023018080;
+    CHINA_3[15]  <= 128'h000FF800019999800200180003018080;
+    CHINA_3[16]  <= 128'h003E7E0000318C000606183003018080;
+    CHINA_3[17]  <= 128'h00781F800061870004031C3003018080;
+    CHINA_3[18]  <= 128'h01E60FF8018101E008719C6003FFFF80;
+    CHINA_3[19]  <= 128'h0787C3FE020800FC1F819B8003000080;
+    CHINA_3[20]  <= 128'h3E01F0F80C07003018011A0003000000;
+    CHINA_3[21]  <= 128'h3000F8003003C00000005B0003000000;
+    CHINA_3[22]  <= 128'h000078000001E0000021998003000008;
+    CHINA_3[23]  <= 128'h000038000000E00000C2188003000008;
+    CHINA_3[24]  <= 128'h00F0000000004000070C18E003000008;
+    CHINA_3[25]  <= 128'h007F8000008000003C38187003000008;
+    CHINA_3[26]  <= 128'h000FF000007F00003830183C03000008;
+    CHINA_3[27]  <= 128'h0001F8000003F000000018180300000C;
+    CHINA_3[28]  <= 128'h0000FC0000007C000000F80003FFFFFC;
+    CHINA_3[29]  <= 128'h00003C0000001C000000780001FFFFF8;
+    CHINA_3[30]  <= 128'h00001C00000004000000200000000000;
+    CHINA_3[31]  <= 128'h00000000000000000000000000000000;
+end
+
+ //给字符数组赋值，用于存储字模数据 汉字“其他颜色”
+always @(posedge clk) begin
+    CHINA_4[0 ]  <= 128'h00000000000000000000000000000000;
+    CHINA_4[1 ]  <= 128'h00000000000000000000000000100000;
+    CHINA_4[2 ]  <= 128'h00200800008000000100000000180000;
+    CHINA_4[3 ]  <= 128'h00380E0000E01C0000C0000800380000;
+    CHINA_4[4 ]  <= 128'h00300C0000C018000060FFFC00301800;
+    CHINA_4[5 ]  <= 128'h00300C0000C0180000420300007FFC00;
+    CHINA_4[6 ]  <= 128'h00300C30018018003FFF020000E03800;
+    CHINA_4[7 ]  <= 128'h1FFFFFF8018018000218020000C03000;
+    CHINA_4[8 ]  <= 128'h00300C00030418000218440801806000;
+    CHINA_4[9 ]  <= 128'h00300C000307182001107FFC03004000;
+    CHINA_4[10]  <= 128'h00300C00020618F00190600806008080;
+    CHINA_4[11]  <= 128'h003FFC0007861F200122600807FFFFC0;
+    CHINA_4[12]  <= 128'h00300C000586F8201FFF62080B018080;
+    CHINA_4[13]  <= 128'h00300C000D0F18201800E38813018080;
+    CHINA_4[14]  <= 128'h00300C00097618201808630823018080;
+    CHINA_4[15]  <= 128'h00300C0019061820181C630803018080;
+    CHINA_4[16]  <= 128'h003FFC00110618601830630803018080;
+    CHINA_4[17]  <= 128'h00300C00210618601840630803018080;
+    CHINA_4[18]  <= 128'h00300C00210618601984630803FFFF80;
+    CHINA_4[19]  <= 128'h00300C10010618601A06630803000080;
+    CHINA_4[20]  <= 128'h00300C3801061BE0180C630803000000;
+    CHINA_4[21]  <= 128'h3FFFFFFC010618C01830630803000000;
+    CHINA_4[22]  <= 128'h00000000010618001060620803000008;
+    CHINA_4[23]  <= 128'h00181000010618081183478003000008;
+    CHINA_4[24]  <= 128'h003C0C00010610081007866003000008;
+    CHINA_4[25]  <= 128'h0070070001060008100E0C3003000008;
+    CHINA_4[26]  <= 128'h00E003C0010600081018081803000008;
+    CHINA_4[27]  <= 128'h01C001E00106000C2070101C0300000C;
+    CHINA_4[28]  <= 128'h070000F00106001E20C0600C03FFFFFC;
+    CHINA_4[29]  <= 128'h0C0000700103FFF84700800401FFFFF8;
+    CHINA_4[30]  <= 128'h30000020010000004003000400000000;
+    CHINA_4[31]  <= 128'h00000000000000000000000000000000;
+end
+
+endmodule 
