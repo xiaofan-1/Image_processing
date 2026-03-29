@@ -74,7 +74,7 @@ wire pos_vsync = (vsync_reg0 && ~vsync_reg1);
 wire neg_vsync = (~vsync_reg0 && vsync_reg1);
 
 // 边界检测（边缘像素即有效像素）
-assign pixel_valid = (data_i == 8'd0 && x > frame_left && x < frame_right && y > frame_top && y < frame_bottom);
+assign pixel_valid = (data_i == 8'd1 && x > frame_left && x < frame_right && y > frame_top && y < frame_bottom);
 // 记录边界（极值法）
 reg [10:0] x_min;
 reg [10:0] x_max;

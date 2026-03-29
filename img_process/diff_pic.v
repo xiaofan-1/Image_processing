@@ -118,28 +118,6 @@ assign diff_hs_out = hsync_reg_pl[2];
 assign diff_vs_out = vsync_reg_pl[2];
 assign diff_de_out = de_reg_pl[2];
 
-//===========================================================================
-// 膨胀
-//===========================================================================
-wire       dilate_hs_out;
-wire       dilate_vs_out;
-wire       dilate_de_out;
-wire [7:0] dilate_data  ;
-
-image_dilation image_dilation_inst(
-    /*input   wire        */.clk         ( sys_clk       ) ,
-    /*input   wire        */.rst_n       ( sys_rst_n     ) ,
-    //   
-    /*input   wire        */.hsync_i     ( diff_hs_out   ) ,
-    /*input   wire        */.vsync_i     ( diff_vs_out   ) ,
-    /*input   wire        */.de_i        ( diff_de_out   ) ,
-    /*input   wire [7:0]  */.data_i      ( diff_data_reg ) , 
-    //输出行场信号   
-    /*output  wire        */.hsync_o     ( dilate_hs_out ) ,
-    /*output  wire        */.vsync_o     ( dilate_vs_out ) ,
-    /*output  wire        */.de_o        ( dilate_de_out ) ,
-    /*output  wire [7:0]  */.data_dilate ( dilate_data   ) 
-);
 
 //===========================================================================
 // 腐蚀
@@ -153,15 +131,61 @@ image_erosion image_erosion_inst1(
     /*input   wire        */.clk        ( sys_clk       ) ,
     /*input   wire        */.rst_n      ( sys_rst_n     ) ,
     //  
-    /*input   wire        */.hsync_i    ( dilate_hs_out ) ,
-    /*input   wire        */.vsync_i    ( dilate_vs_out ) ,
-    /*input   wire        */.de_i       ( dilate_de_out ) ,
-    /*input   wire [7:0]  */.data_i     ( dilate_data   ) ,
+    /*input   wire        */.hsync_i    ( diff_hs_out   ) ,
+    /*input   wire        */.vsync_i    ( diff_vs_out   ) ,
+    /*input   wire        */.de_i       ( diff_de_out   ) ,
+    /*input   wire [7:0]  */.data_i     ( diff_data_reg ) ,
     //输出行场信号  
     /*output  wire        */.hsync_o    ( erode_hs_out  ) ,
     /*output  wire        */.vsync_o    ( erode_vs_out  ) ,
     /*output  wire        */.de_o       ( erode_de_out  ) ,
     /*output  wire [7:0]  */.data_erode ( erode_data    ) 
+);
+
+//===========================================================================
+// 腐蚀
+//===========================================================================
+wire       erode_hs_out1;
+wire       erode_vs_out1;
+wire       erode_de_out1;
+wire [7:0] erode_data1  ;
+
+image_erosion image_erosion_inst(
+    /*input   wire        */.clk        ( sys_clk        ) ,
+    /*input   wire        */.rst_n      ( sys_rst_n      ) ,
+    //  
+    /*input   wire        */.hsync_i    ( erode_hs_out   ) ,
+    /*input   wire        */.vsync_i    ( erode_vs_out   ) ,
+    /*input   wire        */.de_i       ( erode_de_out   ) ,
+    /*input   wire [7:0]  */.data_i     ( erode_data     ) ,
+    //输出行场信号  
+    /*output  wire        */.hsync_o    ( erode_hs_out1  ) ,
+    /*output  wire        */.vsync_o    ( erode_vs_out1  ) ,
+    /*output  wire        */.de_o       ( erode_de_out1  ) ,
+    /*output  wire [7:0]  */.data_erode ( erode_data1    ) 
+);
+
+//===========================================================================
+// 膨胀
+//===========================================================================
+wire       dilate_hs_out;
+wire       dilate_vs_out;
+wire       dilate_de_out;
+wire [7:0] dilate_data  ;
+
+image_dilation image_dilation_inst(
+    /*input   wire        */.clk         ( sys_clk        ) ,
+    /*input   wire        */.rst_n       ( sys_rst_n      ) ,
+    //   
+    /*input   wire        */.hsync_i     ( erode_hs_out1  ) ,
+    /*input   wire        */.vsync_i     ( erode_vs_out1  ) ,
+    /*input   wire        */.de_i        ( erode_de_out1  ) ,
+    /*input   wire [7:0]  */.data_i      ( erode_data1    ) , 
+    //输出行场信号   
+    /*output  wire        */.hsync_o     ( dilate_hs_out  ) ,
+    /*output  wire        */.vsync_o     ( dilate_vs_out  ) ,
+    /*output  wire        */.de_o        ( dilate_de_out  ) ,
+    /*output  wire [7:0]  */.data_dilate ( dilate_data    ) 
 );
 
 //===========================================================================
@@ -176,39 +200,17 @@ image_dilation image_dilation_inst1(
     /*input   wire        */.clk         ( sys_clk        ) ,
     /*input   wire        */.rst_n       ( sys_rst_n      ) ,
     //    
-    /*input   wire        */.hsync_i     ( erode_hs_out   ) ,
-    /*input   wire        */.vsync_i     ( erode_vs_out   ) ,
-    /*input   wire        */.de_i        ( erode_de_out   ) ,
-    /*input   wire [7:0]  */.data_i      ( erode_data     ) , 
+    /*input   wire        */.hsync_i     ( dilate_hs_out  ) ,
+    /*input   wire        */.vsync_i     ( dilate_vs_out  ) ,
+    /*input   wire        */.de_i        ( dilate_de_out  ) ,
+    /*input   wire [7:0]  */.data_i      ( dilate_data    ) , 
     //输出行场信号   
-    /*output  wire        */.hsync_o     ( dilate_hs_out1 ) ,
-    /*output  wire        */.vsync_o     ( dilate_vs_out1 ) ,
-    /*output  wire        */.de_o        ( dilate_de_out1 ) ,
-    /*output  wire [7:0]  */.data_dilate ( dilate_data1   ) 
+    /*output  wire        */.hsync_o     ( hsync_o        ) ,
+    /*output  wire        */.vsync_o     ( vsync_o        ) ,
+    /*output  wire        */.de_o        ( de_o           ) ,
+    /*output  wire [7:0]  */.data_dilate ( diff_data      ) 
 );
 
-//===========================================================================
-// 腐蚀
-//===========================================================================
-wire       erode_hs_out1;
-wire       erode_vs_out1;
-wire       erode_de_out1;
-wire [7:0] erode_data1;
-
-image_erosion image_erosion_inst(
-    /*input   wire        */.clk        ( sys_clk        ) ,
-    /*input   wire        */.rst_n      ( sys_rst_n      ) ,
-    //  
-    /*input   wire        */.hsync_i    ( dilate_hs_out1 ) ,
-    /*input   wire        */.vsync_i    ( dilate_vs_out1 ) ,
-    /*input   wire        */.de_i       ( dilate_de_out1 ) ,
-    /*input   wire [7:0]  */.data_i     ( dilate_data1   ) ,
-    //输出行场信号  
-    /*output  wire        */.hsync_o    ( hsync_o        ) ,
-    /*output  wire        */.vsync_o    ( vsync_o        ) ,
-    /*output  wire        */.de_o       ( de_o           ) ,
-    /*output  wire [7:0]  */.data_erode ( diff_data      ) 
-);
 
 
 
