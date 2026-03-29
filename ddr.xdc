@@ -1,13 +1,17 @@
 #IO引脚约束
 create_clock -period 37.037 -name sys_clk [get_ports sys_clk]
 
-create_clock -period 8.000 -name rgmii_rxc -waveform {0.000 4.000} [get_ports rgmii_rxc]
+# OV5640 720p 典型值为 84~96MHz，这里保守约束为 100MHz (10.000ns) 确保时序绝对安全
+create_clock -period 10.000 -name camera_clk_0 [get_ports camera_clk_0]
+create_clock -period 10.000 -name camera_clk_1 [get_ports camera_clk_1]
+create_clock -period 10.000 -name camera_clk_2 [get_ports camera_clk_2]
 
-# set_input_delay -clock [get_clocks rgmii_rxc] -max 1.5 [get_ports $rx_ports]
-# set_input_delay -clock [get_clocks rgmii_rxc] -min -1.5 [get_ports $rx_ports]
+# 以太网 RGMII 接收时钟 (RXC)
+# 千兆以太网 RGMII 接收时钟标准频率为 125MHz (8.000ns)
+create_clock -period 8.000 -name rgmii_clk [get_ports rgmii_rxc]
 
-# set_input_delay -clock [get_clocks rgmii_rxc] -clock_fall -max -add_delay 1.5 [get_ports $rx_ports]
-# set_input_delay -clock [get_clocks rgmii_rxc] -clock_fall -min -add_delay -1.5 [get_ports $rx_ports]
+# 外部 HDMI 输入时钟 - 720p@60fps 标准 74.25MHz (13.468ns)
+create_clock -period 13.468 -name pixclk_in [get_ports pixclk_in]
 
 set_property CLOCK_DEDICATED_ROUTE FALSE [get_nets vs_in_IBUF]
 
@@ -15,6 +19,9 @@ set_property CLOCK_DEDICATED_ROUTE FALSE [get_nets vs_in_IBUF]
 set_property IODELAY_GROUP ETH_DELAY_GRP [get_cells IDELAYCTRL_inst]
 # 给以太网 RGMII RX 底层模块分组 (将 ethernet_test_inst 改为 ethernet_top_inst)
 set_property IODELAY_GROUP ETH_DELAY_GRP [get_cells -hierarchical -filter {PRIMITIVE_TYPE =~ *IDELAY* && NAME =~ *ethernet_top_inst*}]
+
+# （可选）把所有异步外设时钟和 DDR3 时钟隔离
+set_clock_groups -asynchronous -group [get_clocks sys_clk] -group [get_clocks clk_pll_i] -group [get_clocks clk_out1_hdmi_clk] -group [get_clocks clk_out2_hdmi_clk] -group [get_clocks camera_clk_0] -group [get_clocks camera_clk_1] -group [get_clocks camera_clk_2] -group [get_clocks rgmii_clk] -group [get_clocks pixclk_in]
 
 #----------------------系统时钟---------------------------
 set_property -dict {PACKAGE_PIN D18 IOSTANDARD LVCMOS33} [get_ports sys_clk]
@@ -212,15 +219,10 @@ set_property -dict {PACKAGE_PIN W19 IOSTANDARD LVCMOS33} [get_ports SCL_1]
 set_property -dict {PACKAGE_PIN V23 IOSTANDARD LVCMOS33} [get_ports SDA_1]
 set_property -dict {PACKAGE_PIN AA23 IOSTANDARD LVCMOS33} [get_ports cam_rst_1]
 #----------------------video_sel---------------------------
-# set_property -dict {PACKAGE_PIN C22 IOSTANDARD LVCMOS33} [get_ports {key[0]}]
 set_property -dict {PACKAGE_PIN C23 IOSTANDARD LVCMOS33} [get_ports {key[1]}]
 set_property -dict {PACKAGE_PIN B22 IOSTANDARD LVCMOS33} [get_ports {key[2]}]
 set_property -dict {PACKAGE_PIN A22 IOSTANDARD LVCMOS33} [get_ports {key[3]}]
 set_property -dict {PACKAGE_PIN B20 IOSTANDARD LVCMOS33} [get_ports {key[4]}]
-
-#set_property -dict {PACKAGE_PIN A18 IOSTANDARD LVCMOS33} [get_ports video_led]
-#set_property -dict {PACKAGE_PIN C17 IOSTANDARD LVCMOS33} [get_ports {video_led_s[1]}]
-#set_property -dict {PACKAGE_PIN B17 IOSTANDARD LVCMOS33} [get_ports {video_led_s[0]}]
 
 #----------------------ethernet---------------------------
 set_property -dict {PACKAGE_PIN D19 IOSTANDARD LVCMOS33} [get_ports rgmii_rxc]
@@ -236,20 +238,8 @@ set_property -dict {PACKAGE_PIN C21 IOSTANDARD LVCMOS33} [get_ports {rgmii_txd[2
 set_property -dict {PACKAGE_PIN B21 IOSTANDARD LVCMOS33} [get_ports {rgmii_txd[1]}]
 set_property -dict {PACKAGE_PIN E20 IOSTANDARD LVCMOS33} [get_ports {rgmii_txd[0]}]
 
-# set_property -dict {PACKAGE_PIN G25 IOSTANDARD LVCMOS33} [get_ports phy_rstn]
 set_property BITSTREAM.GENERAL.COMPRESS TRUE [current_design]
-set_property BITSTREAM.CONFIG.SPI_BUSWIDTH 4 [current_design]
 set_property BITSTREAM.CONFIG.CONFIGRATE 33 [current_design]
-
-
-
-
-
-
-
-connect_debug_port u_ila_0/probe2 [get_nets [list {uart_top_inst/rx_state[0]} {uart_top_inst/rx_state[1]} {uart_top_inst/rx_state[2]}]]
-connect_debug_port u_ila_0/probe3 [get_nets [list {uart_top_inst/rx_data[0]} {uart_top_inst/rx_data[1]} {uart_top_inst/rx_data[2]} {uart_top_inst/rx_data[3]} {uart_top_inst/rx_data[4]} {uart_top_inst/rx_data[5]} {uart_top_inst/rx_data[6]} {uart_top_inst/rx_data[7]}]]
-connect_debug_port u_ila_0/probe31 [get_nets [list uart_top_inst/rx_en]]
 
 create_debug_core u_ila_0 ila
 set_property ALL_PROBE_SAME_MU true [get_debug_cores u_ila_0]
@@ -263,56 +253,56 @@ set_property C_TRIGOUT_EN false [get_debug_cores u_ila_0]
 set_property port_width 1 [get_debug_ports u_ila_0/clk]
 connect_debug_port u_ila_0/clk [get_nets [list hdmi_clk_inst/inst/clk_out2]]
 set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe0]
-set_property port_width 24 [get_debug_ports u_ila_0/probe0]
-connect_debug_port u_ila_0/probe0 [get_nets [list {osd_draw_isnt/rgb_data_o[0]} {osd_draw_isnt/rgb_data_o[1]} {osd_draw_isnt/rgb_data_o[2]} {osd_draw_isnt/rgb_data_o[3]} {osd_draw_isnt/rgb_data_o[4]} {osd_draw_isnt/rgb_data_o[5]} {osd_draw_isnt/rgb_data_o[6]} {osd_draw_isnt/rgb_data_o[7]} {osd_draw_isnt/rgb_data_o[8]} {osd_draw_isnt/rgb_data_o[9]} {osd_draw_isnt/rgb_data_o[10]} {osd_draw_isnt/rgb_data_o[11]} {osd_draw_isnt/rgb_data_o[12]} {osd_draw_isnt/rgb_data_o[13]} {osd_draw_isnt/rgb_data_o[14]} {osd_draw_isnt/rgb_data_o[15]} {osd_draw_isnt/rgb_data_o[16]} {osd_draw_isnt/rgb_data_o[17]} {osd_draw_isnt/rgb_data_o[18]} {osd_draw_isnt/rgb_data_o[19]} {osd_draw_isnt/rgb_data_o[20]} {osd_draw_isnt/rgb_data_o[21]} {osd_draw_isnt/rgb_data_o[22]} {osd_draw_isnt/rgb_data_o[23]}]]
+set_property port_width 4 [get_debug_ports u_ila_0/probe0]
+connect_debug_port u_ila_0/probe0 [get_nets [list {multi_target_detect_inst/delete_repet_state[0]} {multi_target_detect_inst/delete_repet_state[1]} {multi_target_detect_inst/delete_repet_state[2]} {multi_target_detect_inst/delete_repet_state[3]}]]
 create_debug_port u_ila_0 probe
 set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe1]
 set_property port_width 12 [get_debug_ports u_ila_0/probe1]
-connect_debug_port u_ila_0/probe1 [get_nets [list {image_color_inst/font_rom_u/addra[0]} {image_color_inst/font_rom_u/addra[1]} {image_color_inst/font_rom_u/addra[2]} {image_color_inst/font_rom_u/addra[3]} {image_color_inst/font_rom_u/addra[4]} {image_color_inst/font_rom_u/addra[5]} {image_color_inst/font_rom_u/addra[6]} {image_color_inst/font_rom_u/addra[7]} {image_color_inst/font_rom_u/addra[8]} {image_color_inst/font_rom_u/addra[9]} {image_color_inst/font_rom_u/addra[10]} {image_color_inst/font_rom_u/addra[11]}]]
+connect_debug_port u_ila_0/probe1 [get_nets [list {multi_target_detect_inst/y_cnt[0]} {multi_target_detect_inst/y_cnt[1]} {multi_target_detect_inst/y_cnt[2]} {multi_target_detect_inst/y_cnt[3]} {multi_target_detect_inst/y_cnt[4]} {multi_target_detect_inst/y_cnt[5]} {multi_target_detect_inst/y_cnt[6]} {multi_target_detect_inst/y_cnt[7]} {multi_target_detect_inst/y_cnt[8]} {multi_target_detect_inst/y_cnt[9]} {multi_target_detect_inst/y_cnt[10]} {multi_target_detect_inst/y_cnt[11]}]]
 create_debug_port u_ila_0 probe
 set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe2]
-set_property port_width 24 [get_debug_ports u_ila_0/probe2]
-connect_debug_port u_ila_0/probe2 [get_nets [list {image_color_inst/font_rom_u/font_red_data[0]} {image_color_inst/font_rom_u/font_red_data[1]} {image_color_inst/font_rom_u/font_red_data[2]} {image_color_inst/font_rom_u/font_red_data[3]} {image_color_inst/font_rom_u/font_red_data[4]} {image_color_inst/font_rom_u/font_red_data[5]} {image_color_inst/font_rom_u/font_red_data[6]} {image_color_inst/font_rom_u/font_red_data[7]} {image_color_inst/font_rom_u/font_red_data[8]} {image_color_inst/font_rom_u/font_red_data[9]} {image_color_inst/font_rom_u/font_red_data[10]} {image_color_inst/font_rom_u/font_red_data[11]} {image_color_inst/font_rom_u/font_red_data[12]} {image_color_inst/font_rom_u/font_red_data[13]} {image_color_inst/font_rom_u/font_red_data[14]} {image_color_inst/font_rom_u/font_red_data[15]} {image_color_inst/font_rom_u/font_red_data[16]} {image_color_inst/font_rom_u/font_red_data[17]} {image_color_inst/font_rom_u/font_red_data[18]} {image_color_inst/font_rom_u/font_red_data[19]} {image_color_inst/font_rom_u/font_red_data[20]} {image_color_inst/font_rom_u/font_red_data[21]} {image_color_inst/font_rom_u/font_red_data[22]} {image_color_inst/font_rom_u/font_red_data[23]}]]
+set_property port_width 12 [get_debug_ports u_ila_0/probe2]
+connect_debug_port u_ila_0/probe2 [get_nets [list {multi_target_detect_inst/x_cnt[0]} {multi_target_detect_inst/x_cnt[1]} {multi_target_detect_inst/x_cnt[2]} {multi_target_detect_inst/x_cnt[3]} {multi_target_detect_inst/x_cnt[4]} {multi_target_detect_inst/x_cnt[5]} {multi_target_detect_inst/x_cnt[6]} {multi_target_detect_inst/x_cnt[7]} {multi_target_detect_inst/x_cnt[8]} {multi_target_detect_inst/x_cnt[9]} {multi_target_detect_inst/x_cnt[10]} {multi_target_detect_inst/x_cnt[11]}]]
 create_debug_port u_ila_0 probe
 set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe3]
 set_property port_width 12 [get_debug_ports u_ila_0/probe3]
-connect_debug_port u_ila_0/probe3 [get_nets [list {image_color_inst/x_min_r[0]} {image_color_inst/x_min_r[1]} {image_color_inst/x_min_r[2]} {image_color_inst/x_min_r[3]} {image_color_inst/x_min_r[4]} {image_color_inst/x_min_r[5]} {image_color_inst/x_min_r[6]} {image_color_inst/x_min_r[7]} {image_color_inst/x_min_r[8]} {image_color_inst/x_min_r[9]} {image_color_inst/x_min_r[10]} {image_color_inst/x_min_r[11]}]]
+connect_debug_port u_ila_0/probe3 [get_nets [list {image_color_inst/font_rom_u/addra[0]} {image_color_inst/font_rom_u/addra[1]} {image_color_inst/font_rom_u/addra[2]} {image_color_inst/font_rom_u/addra[3]} {image_color_inst/font_rom_u/addra[4]} {image_color_inst/font_rom_u/addra[5]} {image_color_inst/font_rom_u/addra[6]} {image_color_inst/font_rom_u/addra[7]} {image_color_inst/font_rom_u/addra[8]} {image_color_inst/font_rom_u/addra[9]} {image_color_inst/font_rom_u/addra[10]} {image_color_inst/font_rom_u/addra[11]}]]
 create_debug_port u_ila_0 probe
 set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe4]
-set_property port_width 12 [get_debug_ports u_ila_0/probe4]
-connect_debug_port u_ila_0/probe4 [get_nets [list {image_color_inst/pixel_x_reg_font[0]} {image_color_inst/pixel_x_reg_font[1]} {image_color_inst/pixel_x_reg_font[2]} {image_color_inst/pixel_x_reg_font[3]} {image_color_inst/pixel_x_reg_font[4]} {image_color_inst/pixel_x_reg_font[5]} {image_color_inst/pixel_x_reg_font[6]} {image_color_inst/pixel_x_reg_font[7]} {image_color_inst/pixel_x_reg_font[8]} {image_color_inst/pixel_x_reg_font[9]} {image_color_inst/pixel_x_reg_font[10]} {image_color_inst/pixel_x_reg_font[11]}]]
+set_property port_width 24 [get_debug_ports u_ila_0/probe4]
+connect_debug_port u_ila_0/probe4 [get_nets [list {image_color_inst/font_rom_u/font_red_data[0]} {image_color_inst/font_rom_u/font_red_data[1]} {image_color_inst/font_rom_u/font_red_data[2]} {image_color_inst/font_rom_u/font_red_data[3]} {image_color_inst/font_rom_u/font_red_data[4]} {image_color_inst/font_rom_u/font_red_data[5]} {image_color_inst/font_rom_u/font_red_data[6]} {image_color_inst/font_rom_u/font_red_data[7]} {image_color_inst/font_rom_u/font_red_data[8]} {image_color_inst/font_rom_u/font_red_data[9]} {image_color_inst/font_rom_u/font_red_data[10]} {image_color_inst/font_rom_u/font_red_data[11]} {image_color_inst/font_rom_u/font_red_data[12]} {image_color_inst/font_rom_u/font_red_data[13]} {image_color_inst/font_rom_u/font_red_data[14]} {image_color_inst/font_rom_u/font_red_data[15]} {image_color_inst/font_rom_u/font_red_data[16]} {image_color_inst/font_rom_u/font_red_data[17]} {image_color_inst/font_rom_u/font_red_data[18]} {image_color_inst/font_rom_u/font_red_data[19]} {image_color_inst/font_rom_u/font_red_data[20]} {image_color_inst/font_rom_u/font_red_data[21]} {image_color_inst/font_rom_u/font_red_data[22]} {image_color_inst/font_rom_u/font_red_data[23]}]]
 create_debug_port u_ila_0 probe
 set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe5]
-set_property port_width 12 [get_debug_ports u_ila_0/probe5]
-connect_debug_port u_ila_0/probe5 [get_nets [list {image_color_inst/pixel_y_reg_font[0]} {image_color_inst/pixel_y_reg_font[1]} {image_color_inst/pixel_y_reg_font[2]} {image_color_inst/pixel_y_reg_font[3]} {image_color_inst/pixel_y_reg_font[4]} {image_color_inst/pixel_y_reg_font[5]} {image_color_inst/pixel_y_reg_font[6]} {image_color_inst/pixel_y_reg_font[7]} {image_color_inst/pixel_y_reg_font[8]} {image_color_inst/pixel_y_reg_font[9]} {image_color_inst/pixel_y_reg_font[10]} {image_color_inst/pixel_y_reg_font[11]}]]
+set_property port_width 24 [get_debug_ports u_ila_0/probe5]
+connect_debug_port u_ila_0/probe5 [get_nets [list {image_color_inst/data_o[0]} {image_color_inst/data_o[1]} {image_color_inst/data_o[2]} {image_color_inst/data_o[3]} {image_color_inst/data_o[4]} {image_color_inst/data_o[5]} {image_color_inst/data_o[6]} {image_color_inst/data_o[7]} {image_color_inst/data_o[8]} {image_color_inst/data_o[9]} {image_color_inst/data_o[10]} {image_color_inst/data_o[11]} {image_color_inst/data_o[12]} {image_color_inst/data_o[13]} {image_color_inst/data_o[14]} {image_color_inst/data_o[15]} {image_color_inst/data_o[16]} {image_color_inst/data_o[17]} {image_color_inst/data_o[18]} {image_color_inst/data_o[19]} {image_color_inst/data_o[20]} {image_color_inst/data_o[21]} {image_color_inst/data_o[22]} {image_color_inst/data_o[23]}]]
 create_debug_port u_ila_0 probe
 set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe6]
-set_property port_width 12 [get_debug_ports u_ila_0/probe6]
-connect_debug_port u_ila_0/probe6 [get_nets [list {image_color_inst/pixle_x_reg[0]} {image_color_inst/pixle_x_reg[1]} {image_color_inst/pixle_x_reg[2]} {image_color_inst/pixle_x_reg[3]} {image_color_inst/pixle_x_reg[4]} {image_color_inst/pixle_x_reg[5]} {image_color_inst/pixle_x_reg[6]} {image_color_inst/pixle_x_reg[7]} {image_color_inst/pixle_x_reg[8]} {image_color_inst/pixle_x_reg[9]} {image_color_inst/pixle_x_reg[10]} {image_color_inst/pixle_x_reg[11]}]]
+set_property port_width 8 [get_debug_ports u_ila_0/probe6]
+connect_debug_port u_ila_0/probe6 [get_nets [list {image_color_inst/data_color_reg[0]} {image_color_inst/data_color_reg[1]} {image_color_inst/data_color_reg[2]} {image_color_inst/data_color_reg[3]} {image_color_inst/data_color_reg[4]} {image_color_inst/data_color_reg[5]} {image_color_inst/data_color_reg[6]} {image_color_inst/data_color_reg[7]}]]
 create_debug_port u_ila_0 probe
 set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe7]
-set_property port_width 24 [get_debug_ports u_ila_0/probe7]
-connect_debug_port u_ila_0/probe7 [get_nets [list {image_color_inst/rgb_data_reg[0]} {image_color_inst/rgb_data_reg[1]} {image_color_inst/rgb_data_reg[2]} {image_color_inst/rgb_data_reg[3]} {image_color_inst/rgb_data_reg[4]} {image_color_inst/rgb_data_reg[5]} {image_color_inst/rgb_data_reg[6]} {image_color_inst/rgb_data_reg[7]} {image_color_inst/rgb_data_reg[8]} {image_color_inst/rgb_data_reg[9]} {image_color_inst/rgb_data_reg[10]} {image_color_inst/rgb_data_reg[11]} {image_color_inst/rgb_data_reg[12]} {image_color_inst/rgb_data_reg[13]} {image_color_inst/rgb_data_reg[14]} {image_color_inst/rgb_data_reg[15]} {image_color_inst/rgb_data_reg[16]} {image_color_inst/rgb_data_reg[17]} {image_color_inst/rgb_data_reg[18]} {image_color_inst/rgb_data_reg[19]} {image_color_inst/rgb_data_reg[20]} {image_color_inst/rgb_data_reg[21]} {image_color_inst/rgb_data_reg[22]} {image_color_inst/rgb_data_reg[23]}]]
+set_property port_width 12 [get_debug_ports u_ila_0/probe7]
+connect_debug_port u_ila_0/probe7 [get_nets [list {image_color_inst/x_max_r[0]} {image_color_inst/x_max_r[1]} {image_color_inst/x_max_r[2]} {image_color_inst/x_max_r[3]} {image_color_inst/x_max_r[4]} {image_color_inst/x_max_r[5]} {image_color_inst/x_max_r[6]} {image_color_inst/x_max_r[7]} {image_color_inst/x_max_r[8]} {image_color_inst/x_max_r[9]} {image_color_inst/x_max_r[10]} {image_color_inst/x_max_r[11]}]]
 create_debug_port u_ila_0 probe
 set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe8]
-set_property port_width 24 [get_debug_ports u_ila_0/probe8]
-connect_debug_port u_ila_0/probe8 [get_nets [list {image_color_inst/data_o[0]} {image_color_inst/data_o[1]} {image_color_inst/data_o[2]} {image_color_inst/data_o[3]} {image_color_inst/data_o[4]} {image_color_inst/data_o[5]} {image_color_inst/data_o[6]} {image_color_inst/data_o[7]} {image_color_inst/data_o[8]} {image_color_inst/data_o[9]} {image_color_inst/data_o[10]} {image_color_inst/data_o[11]} {image_color_inst/data_o[12]} {image_color_inst/data_o[13]} {image_color_inst/data_o[14]} {image_color_inst/data_o[15]} {image_color_inst/data_o[16]} {image_color_inst/data_o[17]} {image_color_inst/data_o[18]} {image_color_inst/data_o[19]} {image_color_inst/data_o[20]} {image_color_inst/data_o[21]} {image_color_inst/data_o[22]} {image_color_inst/data_o[23]}]]
+set_property port_width 12 [get_debug_ports u_ila_0/probe8]
+connect_debug_port u_ila_0/probe8 [get_nets [list {image_color_inst/pixel_y_reg_font[0]} {image_color_inst/pixel_y_reg_font[1]} {image_color_inst/pixel_y_reg_font[2]} {image_color_inst/pixel_y_reg_font[3]} {image_color_inst/pixel_y_reg_font[4]} {image_color_inst/pixel_y_reg_font[5]} {image_color_inst/pixel_y_reg_font[6]} {image_color_inst/pixel_y_reg_font[7]} {image_color_inst/pixel_y_reg_font[8]} {image_color_inst/pixel_y_reg_font[9]} {image_color_inst/pixel_y_reg_font[10]} {image_color_inst/pixel_y_reg_font[11]}]]
 create_debug_port u_ila_0 probe
 set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe9]
-set_property port_width 8 [get_debug_ports u_ila_0/probe9]
-connect_debug_port u_ila_0/probe9 [get_nets [list {image_color_inst/data_color_reg[0]} {image_color_inst/data_color_reg[1]} {image_color_inst/data_color_reg[2]} {image_color_inst/data_color_reg[3]} {image_color_inst/data_color_reg[4]} {image_color_inst/data_color_reg[5]} {image_color_inst/data_color_reg[6]} {image_color_inst/data_color_reg[7]}]]
+set_property port_width 12 [get_debug_ports u_ila_0/probe9]
+connect_debug_port u_ila_0/probe9 [get_nets [list {image_color_inst/pixel_x_reg_font[0]} {image_color_inst/pixel_x_reg_font[1]} {image_color_inst/pixel_x_reg_font[2]} {image_color_inst/pixel_x_reg_font[3]} {image_color_inst/pixel_x_reg_font[4]} {image_color_inst/pixel_x_reg_font[5]} {image_color_inst/pixel_x_reg_font[6]} {image_color_inst/pixel_x_reg_font[7]} {image_color_inst/pixel_x_reg_font[8]} {image_color_inst/pixel_x_reg_font[9]} {image_color_inst/pixel_x_reg_font[10]} {image_color_inst/pixel_x_reg_font[11]}]]
 create_debug_port u_ila_0 probe
 set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe10]
-set_property port_width 12 [get_debug_ports u_ila_0/probe10]
-connect_debug_port u_ila_0/probe10 [get_nets [list {image_color_inst/x_max_r[0]} {image_color_inst/x_max_r[1]} {image_color_inst/x_max_r[2]} {image_color_inst/x_max_r[3]} {image_color_inst/x_max_r[4]} {image_color_inst/x_max_r[5]} {image_color_inst/x_max_r[6]} {image_color_inst/x_max_r[7]} {image_color_inst/x_max_r[8]} {image_color_inst/x_max_r[9]} {image_color_inst/x_max_r[10]} {image_color_inst/x_max_r[11]}]]
+set_property port_width 24 [get_debug_ports u_ila_0/probe10]
+connect_debug_port u_ila_0/probe10 [get_nets [list {image_color_inst/font_rom_data[0]} {image_color_inst/font_rom_data[1]} {image_color_inst/font_rom_data[2]} {image_color_inst/font_rom_data[3]} {image_color_inst/font_rom_data[4]} {image_color_inst/font_rom_data[5]} {image_color_inst/font_rom_data[6]} {image_color_inst/font_rom_data[7]} {image_color_inst/font_rom_data[8]} {image_color_inst/font_rom_data[9]} {image_color_inst/font_rom_data[10]} {image_color_inst/font_rom_data[11]} {image_color_inst/font_rom_data[12]} {image_color_inst/font_rom_data[13]} {image_color_inst/font_rom_data[14]} {image_color_inst/font_rom_data[15]} {image_color_inst/font_rom_data[16]} {image_color_inst/font_rom_data[17]} {image_color_inst/font_rom_data[18]} {image_color_inst/font_rom_data[19]} {image_color_inst/font_rom_data[20]} {image_color_inst/font_rom_data[21]} {image_color_inst/font_rom_data[22]} {image_color_inst/font_rom_data[23]}]]
 create_debug_port u_ila_0 probe
 set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe11]
-set_property port_width 24 [get_debug_ports u_ila_0/probe11]
-connect_debug_port u_ila_0/probe11 [get_nets [list {image_color_inst/font_rom_data[0]} {image_color_inst/font_rom_data[1]} {image_color_inst/font_rom_data[2]} {image_color_inst/font_rom_data[3]} {image_color_inst/font_rom_data[4]} {image_color_inst/font_rom_data[5]} {image_color_inst/font_rom_data[6]} {image_color_inst/font_rom_data[7]} {image_color_inst/font_rom_data[8]} {image_color_inst/font_rom_data[9]} {image_color_inst/font_rom_data[10]} {image_color_inst/font_rom_data[11]} {image_color_inst/font_rom_data[12]} {image_color_inst/font_rom_data[13]} {image_color_inst/font_rom_data[14]} {image_color_inst/font_rom_data[15]} {image_color_inst/font_rom_data[16]} {image_color_inst/font_rom_data[17]} {image_color_inst/font_rom_data[18]} {image_color_inst/font_rom_data[19]} {image_color_inst/font_rom_data[20]} {image_color_inst/font_rom_data[21]} {image_color_inst/font_rom_data[22]} {image_color_inst/font_rom_data[23]}]]
+set_property port_width 12 [get_debug_ports u_ila_0/probe11]
+connect_debug_port u_ila_0/probe11 [get_nets [list {image_color_inst/x_min_r[0]} {image_color_inst/x_min_r[1]} {image_color_inst/x_min_r[2]} {image_color_inst/x_min_r[3]} {image_color_inst/x_min_r[4]} {image_color_inst/x_min_r[5]} {image_color_inst/x_min_r[6]} {image_color_inst/x_min_r[7]} {image_color_inst/x_min_r[8]} {image_color_inst/x_min_r[9]} {image_color_inst/x_min_r[10]} {image_color_inst/x_min_r[11]}]]
 create_debug_port u_ila_0 probe
 set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe12]
-set_property port_width 12 [get_debug_ports u_ila_0/probe12]
-connect_debug_port u_ila_0/probe12 [get_nets [list {image_color_inst/pixle_y_reg[0]} {image_color_inst/pixle_y_reg[1]} {image_color_inst/pixle_y_reg[2]} {image_color_inst/pixle_y_reg[3]} {image_color_inst/pixle_y_reg[4]} {image_color_inst/pixle_y_reg[5]} {image_color_inst/pixle_y_reg[6]} {image_color_inst/pixle_y_reg[7]} {image_color_inst/pixle_y_reg[8]} {image_color_inst/pixle_y_reg[9]} {image_color_inst/pixle_y_reg[10]} {image_color_inst/pixle_y_reg[11]}]]
+set_property port_width 24 [get_debug_ports u_ila_0/probe12]
+connect_debug_port u_ila_0/probe12 [get_nets [list {image_color_inst/rgb_data_reg[0]} {image_color_inst/rgb_data_reg[1]} {image_color_inst/rgb_data_reg[2]} {image_color_inst/rgb_data_reg[3]} {image_color_inst/rgb_data_reg[4]} {image_color_inst/rgb_data_reg[5]} {image_color_inst/rgb_data_reg[6]} {image_color_inst/rgb_data_reg[7]} {image_color_inst/rgb_data_reg[8]} {image_color_inst/rgb_data_reg[9]} {image_color_inst/rgb_data_reg[10]} {image_color_inst/rgb_data_reg[11]} {image_color_inst/rgb_data_reg[12]} {image_color_inst/rgb_data_reg[13]} {image_color_inst/rgb_data_reg[14]} {image_color_inst/rgb_data_reg[15]} {image_color_inst/rgb_data_reg[16]} {image_color_inst/rgb_data_reg[17]} {image_color_inst/rgb_data_reg[18]} {image_color_inst/rgb_data_reg[19]} {image_color_inst/rgb_data_reg[20]} {image_color_inst/rgb_data_reg[21]} {image_color_inst/rgb_data_reg[22]} {image_color_inst/rgb_data_reg[23]}]]
 create_debug_port u_ila_0 probe
 set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe13]
 set_property port_width 12 [get_debug_ports u_ila_0/probe13]
@@ -323,56 +313,160 @@ set_property port_width 12 [get_debug_ports u_ila_0/probe14]
 connect_debug_port u_ila_0/probe14 [get_nets [list {image_color_inst/y_min_r[0]} {image_color_inst/y_min_r[1]} {image_color_inst/y_min_r[2]} {image_color_inst/y_min_r[3]} {image_color_inst/y_min_r[4]} {image_color_inst/y_min_r[5]} {image_color_inst/y_min_r[6]} {image_color_inst/y_min_r[7]} {image_color_inst/y_min_r[8]} {image_color_inst/y_min_r[9]} {image_color_inst/y_min_r[10]} {image_color_inst/y_min_r[11]}]]
 create_debug_port u_ila_0 probe
 set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe15]
-set_property port_width 24 [get_debug_ports u_ila_0/probe15]
-connect_debug_port u_ila_0/probe15 [get_nets [list {image_frame_inst/data_o[0]} {image_frame_inst/data_o[1]} {image_frame_inst/data_o[2]} {image_frame_inst/data_o[3]} {image_frame_inst/data_o[4]} {image_frame_inst/data_o[5]} {image_frame_inst/data_o[6]} {image_frame_inst/data_o[7]} {image_frame_inst/data_o[8]} {image_frame_inst/data_o[9]} {image_frame_inst/data_o[10]} {image_frame_inst/data_o[11]} {image_frame_inst/data_o[12]} {image_frame_inst/data_o[13]} {image_frame_inst/data_o[14]} {image_frame_inst/data_o[15]} {image_frame_inst/data_o[16]} {image_frame_inst/data_o[17]} {image_frame_inst/data_o[18]} {image_frame_inst/data_o[19]} {image_frame_inst/data_o[20]} {image_frame_inst/data_o[21]} {image_frame_inst/data_o[22]} {image_frame_inst/data_o[23]}]]
+set_property port_width 12 [get_debug_ports u_ila_0/probe15]
+connect_debug_port u_ila_0/probe15 [get_nets [list {Video_add_rectangular_inst/y_cnt_r[0]} {Video_add_rectangular_inst/y_cnt_r[1]} {Video_add_rectangular_inst/y_cnt_r[2]} {Video_add_rectangular_inst/y_cnt_r[3]} {Video_add_rectangular_inst/y_cnt_r[4]} {Video_add_rectangular_inst/y_cnt_r[5]} {Video_add_rectangular_inst/y_cnt_r[6]} {Video_add_rectangular_inst/y_cnt_r[7]} {Video_add_rectangular_inst/y_cnt_r[8]} {Video_add_rectangular_inst/y_cnt_r[9]} {Video_add_rectangular_inst/y_cnt_r[10]} {Video_add_rectangular_inst/y_cnt_r[11]}]]
 create_debug_port u_ila_0 probe
 set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe16]
 set_property port_width 24 [get_debug_ports u_ila_0/probe16]
-connect_debug_port u_ila_0/probe16 [get_nets [list {image_frame_inst/rgb_data_reg[0]} {image_frame_inst/rgb_data_reg[1]} {image_frame_inst/rgb_data_reg[2]} {image_frame_inst/rgb_data_reg[3]} {image_frame_inst/rgb_data_reg[4]} {image_frame_inst/rgb_data_reg[5]} {image_frame_inst/rgb_data_reg[6]} {image_frame_inst/rgb_data_reg[7]} {image_frame_inst/rgb_data_reg[8]} {image_frame_inst/rgb_data_reg[9]} {image_frame_inst/rgb_data_reg[10]} {image_frame_inst/rgb_data_reg[11]} {image_frame_inst/rgb_data_reg[12]} {image_frame_inst/rgb_data_reg[13]} {image_frame_inst/rgb_data_reg[14]} {image_frame_inst/rgb_data_reg[15]} {image_frame_inst/rgb_data_reg[16]} {image_frame_inst/rgb_data_reg[17]} {image_frame_inst/rgb_data_reg[18]} {image_frame_inst/rgb_data_reg[19]} {image_frame_inst/rgb_data_reg[20]} {image_frame_inst/rgb_data_reg[21]} {image_frame_inst/rgb_data_reg[22]} {image_frame_inst/rgb_data_reg[23]}]]
+connect_debug_port u_ila_0/probe16 [get_nets [list {Video_add_rectangular_inst/rgb_data_o[0]} {Video_add_rectangular_inst/rgb_data_o[1]} {Video_add_rectangular_inst/rgb_data_o[2]} {Video_add_rectangular_inst/rgb_data_o[3]} {Video_add_rectangular_inst/rgb_data_o[4]} {Video_add_rectangular_inst/rgb_data_o[5]} {Video_add_rectangular_inst/rgb_data_o[6]} {Video_add_rectangular_inst/rgb_data_o[7]} {Video_add_rectangular_inst/rgb_data_o[8]} {Video_add_rectangular_inst/rgb_data_o[9]} {Video_add_rectangular_inst/rgb_data_o[10]} {Video_add_rectangular_inst/rgb_data_o[11]} {Video_add_rectangular_inst/rgb_data_o[12]} {Video_add_rectangular_inst/rgb_data_o[13]} {Video_add_rectangular_inst/rgb_data_o[14]} {Video_add_rectangular_inst/rgb_data_o[15]} {Video_add_rectangular_inst/rgb_data_o[16]} {Video_add_rectangular_inst/rgb_data_o[17]} {Video_add_rectangular_inst/rgb_data_o[18]} {Video_add_rectangular_inst/rgb_data_o[19]} {Video_add_rectangular_inst/rgb_data_o[20]} {Video_add_rectangular_inst/rgb_data_o[21]} {Video_add_rectangular_inst/rgb_data_o[22]} {Video_add_rectangular_inst/rgb_data_o[23]}]]
 create_debug_port u_ila_0 probe
 set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe17]
 set_property port_width 12 [get_debug_ports u_ila_0/probe17]
-connect_debug_port u_ila_0/probe17 [get_nets [list {image_frame_inst/pixle_y_reg[0]} {image_frame_inst/pixle_y_reg[1]} {image_frame_inst/pixle_y_reg[2]} {image_frame_inst/pixle_y_reg[3]} {image_frame_inst/pixle_y_reg[4]} {image_frame_inst/pixle_y_reg[5]} {image_frame_inst/pixle_y_reg[6]} {image_frame_inst/pixle_y_reg[7]} {image_frame_inst/pixle_y_reg[8]} {image_frame_inst/pixle_y_reg[9]} {image_frame_inst/pixle_y_reg[10]} {image_frame_inst/pixle_y_reg[11]}]]
+connect_debug_port u_ila_0/probe17 [get_nets [list {Video_add_rectangular_inst/x_cnt[0]} {Video_add_rectangular_inst/x_cnt[1]} {Video_add_rectangular_inst/x_cnt[2]} {Video_add_rectangular_inst/x_cnt[3]} {Video_add_rectangular_inst/x_cnt[4]} {Video_add_rectangular_inst/x_cnt[5]} {Video_add_rectangular_inst/x_cnt[6]} {Video_add_rectangular_inst/x_cnt[7]} {Video_add_rectangular_inst/x_cnt[8]} {Video_add_rectangular_inst/x_cnt[9]} {Video_add_rectangular_inst/x_cnt[10]} {Video_add_rectangular_inst/x_cnt[11]}]]
 create_debug_port u_ila_0 probe
 set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe18]
 set_property port_width 12 [get_debug_ports u_ila_0/probe18]
-connect_debug_port u_ila_0/probe18 [get_nets [list {image_frame_inst/x_max_r[0]} {image_frame_inst/x_max_r[1]} {image_frame_inst/x_max_r[2]} {image_frame_inst/x_max_r[3]} {image_frame_inst/x_max_r[4]} {image_frame_inst/x_max_r[5]} {image_frame_inst/x_max_r[6]} {image_frame_inst/x_max_r[7]} {image_frame_inst/x_max_r[8]} {image_frame_inst/x_max_r[9]} {image_frame_inst/x_max_r[10]} {image_frame_inst/x_max_r[11]}]]
+connect_debug_port u_ila_0/probe18 [get_nets [list {Video_add_rectangular_inst/y_cnt[0]} {Video_add_rectangular_inst/y_cnt[1]} {Video_add_rectangular_inst/y_cnt[2]} {Video_add_rectangular_inst/y_cnt[3]} {Video_add_rectangular_inst/y_cnt[4]} {Video_add_rectangular_inst/y_cnt[5]} {Video_add_rectangular_inst/y_cnt[6]} {Video_add_rectangular_inst/y_cnt[7]} {Video_add_rectangular_inst/y_cnt[8]} {Video_add_rectangular_inst/y_cnt[9]} {Video_add_rectangular_inst/y_cnt[10]} {Video_add_rectangular_inst/y_cnt[11]}]]
 create_debug_port u_ila_0 probe
 set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe19]
 set_property port_width 12 [get_debug_ports u_ila_0/probe19]
-connect_debug_port u_ila_0/probe19 [get_nets [list {image_frame_inst/pixle_x_reg[0]} {image_frame_inst/pixle_x_reg[1]} {image_frame_inst/pixle_x_reg[2]} {image_frame_inst/pixle_x_reg[3]} {image_frame_inst/pixle_x_reg[4]} {image_frame_inst/pixle_x_reg[5]} {image_frame_inst/pixle_x_reg[6]} {image_frame_inst/pixle_x_reg[7]} {image_frame_inst/pixle_x_reg[8]} {image_frame_inst/pixle_x_reg[9]} {image_frame_inst/pixle_x_reg[10]} {image_frame_inst/pixle_x_reg[11]}]]
+connect_debug_port u_ila_0/probe19 [get_nets [list {Video_add_rectangular_inst/x_cnt_r[0]} {Video_add_rectangular_inst/x_cnt_r[1]} {Video_add_rectangular_inst/x_cnt_r[2]} {Video_add_rectangular_inst/x_cnt_r[3]} {Video_add_rectangular_inst/x_cnt_r[4]} {Video_add_rectangular_inst/x_cnt_r[5]} {Video_add_rectangular_inst/x_cnt_r[6]} {Video_add_rectangular_inst/x_cnt_r[7]} {Video_add_rectangular_inst/x_cnt_r[8]} {Video_add_rectangular_inst/x_cnt_r[9]} {Video_add_rectangular_inst/x_cnt_r[10]} {Video_add_rectangular_inst/x_cnt_r[11]}]]
 create_debug_port u_ila_0 probe
 set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe20]
-set_property port_width 12 [get_debug_ports u_ila_0/probe20]
-connect_debug_port u_ila_0/probe20 [get_nets [list {image_frame_inst/x_min_r[0]} {image_frame_inst/x_min_r[1]} {image_frame_inst/x_min_r[2]} {image_frame_inst/x_min_r[3]} {image_frame_inst/x_min_r[4]} {image_frame_inst/x_min_r[5]} {image_frame_inst/x_min_r[6]} {image_frame_inst/x_min_r[7]} {image_frame_inst/x_min_r[8]} {image_frame_inst/x_min_r[9]} {image_frame_inst/x_min_r[10]} {image_frame_inst/x_min_r[11]}]]
+set_property port_width 1 [get_debug_ports u_ila_0/probe20]
+connect_debug_port u_ila_0/probe20 [get_nets [list image_color_inst/de_o]]
 create_debug_port u_ila_0 probe
 set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe21]
-set_property port_width 12 [get_debug_ports u_ila_0/probe21]
-connect_debug_port u_ila_0/probe21 [get_nets [list {image_frame_inst/y_max_r[0]} {image_frame_inst/y_max_r[1]} {image_frame_inst/y_max_r[2]} {image_frame_inst/y_max_r[3]} {image_frame_inst/y_max_r[4]} {image_frame_inst/y_max_r[5]} {image_frame_inst/y_max_r[6]} {image_frame_inst/y_max_r[7]} {image_frame_inst/y_max_r[8]} {image_frame_inst/y_max_r[9]} {image_frame_inst/y_max_r[10]} {image_frame_inst/y_max_r[11]}]]
+set_property port_width 1 [get_debug_ports u_ila_0/probe21]
+connect_debug_port u_ila_0/probe21 [get_nets [list Video_add_rectangular_inst/de_o]]
 create_debug_port u_ila_0 probe
 set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe22]
-set_property port_width 12 [get_debug_ports u_ila_0/probe22]
-connect_debug_port u_ila_0/probe22 [get_nets [list {image_frame_inst/y_min_r[0]} {image_frame_inst/y_min_r[1]} {image_frame_inst/y_min_r[2]} {image_frame_inst/y_min_r[3]} {image_frame_inst/y_min_r[4]} {image_frame_inst/y_min_r[5]} {image_frame_inst/y_min_r[6]} {image_frame_inst/y_min_r[7]} {image_frame_inst/y_min_r[8]} {image_frame_inst/y_min_r[9]} {image_frame_inst/y_min_r[10]} {image_frame_inst/y_min_r[11]}]]
+set_property port_width 1 [get_debug_ports u_ila_0/probe22]
+connect_debug_port u_ila_0/probe22 [get_nets [list image_color_inst/de_reg]]
 create_debug_port u_ila_0 probe
 set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe23]
 set_property port_width 1 [get_debug_ports u_ila_0/probe23]
-connect_debug_port u_ila_0/probe23 [get_nets [list osd_draw_isnt/de_o]]
+connect_debug_port u_ila_0/probe23 [get_nets [list image_color_inst/de_reg_font]]
 create_debug_port u_ila_0 probe
 set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe24]
 set_property port_width 1 [get_debug_ports u_ila_0/probe24]
-connect_debug_port u_ila_0/probe24 [get_nets [list image_frame_inst/de_o]]
+connect_debug_port u_ila_0/probe24 [get_nets [list Video_add_rectangular_inst/hsync_o]]
 create_debug_port u_ila_0 probe
 set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe25]
 set_property port_width 1 [get_debug_ports u_ila_0/probe25]
-connect_debug_port u_ila_0/probe25 [get_nets [list image_color_inst/de_o]]
+connect_debug_port u_ila_0/probe25 [get_nets [list image_color_inst/n_0_0]]
 create_debug_port u_ila_0 probe
 set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe26]
 set_property port_width 1 [get_debug_ports u_ila_0/probe26]
-connect_debug_port u_ila_0/probe26 [get_nets [list image_color_inst/de_reg]]
+connect_debug_port u_ila_0/probe26 [get_nets [list image_color_inst/n_0_1]]
 create_debug_port u_ila_0 probe
 set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe27]
 set_property port_width 1 [get_debug_ports u_ila_0/probe27]
-connect_debug_port u_ila_0/probe27 [get_nets [list image_color_inst/de_reg_font]]
+connect_debug_port u_ila_0/probe27 [get_nets [list multi_target_detect_inst/per_frame_clken_r]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe28]
+set_property port_width 1 [get_debug_ports u_ila_0/probe28]
+connect_debug_port u_ila_0/probe28 [get_nets [list multi_target_detect_inst/per_frame_href_r]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe29]
+set_property port_width 1 [get_debug_ports u_ila_0/probe29]
+connect_debug_port u_ila_0/probe29 [get_nets [list multi_target_detect_inst/per_frame_vsync_r]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe30]
+set_property port_width 1 [get_debug_ports u_ila_0/probe30]
+connect_debug_port u_ila_0/probe30 [get_nets [list multi_target_detect_inst/per_img_Bit_r]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe31]
+set_property port_width 1 [get_debug_ports u_ila_0/probe31]
+connect_debug_port u_ila_0/probe31 [get_nets [list {image_color_inst/pixel_x_pipe_reg_n_0_[19][0]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe32]
+set_property port_width 1 [get_debug_ports u_ila_0/probe32]
+connect_debug_port u_ila_0/probe32 [get_nets [list {image_color_inst/pixel_x_pipe_reg_n_0_[19][1]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe33]
+set_property port_width 1 [get_debug_ports u_ila_0/probe33]
+connect_debug_port u_ila_0/probe33 [get_nets [list {image_color_inst/pixel_x_pipe_reg_n_0_[19][2]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe34]
+set_property port_width 1 [get_debug_ports u_ila_0/probe34]
+connect_debug_port u_ila_0/probe34 [get_nets [list {image_color_inst/pixel_x_pipe_reg_n_0_[19][3]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe35]
+set_property port_width 1 [get_debug_ports u_ila_0/probe35]
+connect_debug_port u_ila_0/probe35 [get_nets [list {image_color_inst/pixel_x_pipe_reg_n_0_[19][4]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe36]
+set_property port_width 1 [get_debug_ports u_ila_0/probe36]
+connect_debug_port u_ila_0/probe36 [get_nets [list {image_color_inst/pixel_x_pipe_reg_n_0_[19][5]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe37]
+set_property port_width 1 [get_debug_ports u_ila_0/probe37]
+connect_debug_port u_ila_0/probe37 [get_nets [list {image_color_inst/pixel_x_pipe_reg_n_0_[19][6]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe38]
+set_property port_width 1 [get_debug_ports u_ila_0/probe38]
+connect_debug_port u_ila_0/probe38 [get_nets [list {image_color_inst/pixel_x_pipe_reg_n_0_[19][7]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe39]
+set_property port_width 1 [get_debug_ports u_ila_0/probe39]
+connect_debug_port u_ila_0/probe39 [get_nets [list {image_color_inst/pixel_x_pipe_reg_n_0_[19][8]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe40]
+set_property port_width 1 [get_debug_ports u_ila_0/probe40]
+connect_debug_port u_ila_0/probe40 [get_nets [list {image_color_inst/pixel_x_pipe_reg_n_0_[19][9]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe41]
+set_property port_width 1 [get_debug_ports u_ila_0/probe41]
+connect_debug_port u_ila_0/probe41 [get_nets [list {image_color_inst/pixel_x_pipe_reg_n_0_[19][10]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe42]
+set_property port_width 1 [get_debug_ports u_ila_0/probe42]
+connect_debug_port u_ila_0/probe42 [get_nets [list {image_color_inst/pixel_y_pipe_reg_n_0_[19][0]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe43]
+set_property port_width 1 [get_debug_ports u_ila_0/probe43]
+connect_debug_port u_ila_0/probe43 [get_nets [list {image_color_inst/pixel_y_pipe_reg_n_0_[19][1]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe44]
+set_property port_width 1 [get_debug_ports u_ila_0/probe44]
+connect_debug_port u_ila_0/probe44 [get_nets [list {image_color_inst/pixel_y_pipe_reg_n_0_[19][2]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe45]
+set_property port_width 1 [get_debug_ports u_ila_0/probe45]
+connect_debug_port u_ila_0/probe45 [get_nets [list {image_color_inst/pixel_y_pipe_reg_n_0_[19][3]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe46]
+set_property port_width 1 [get_debug_ports u_ila_0/probe46]
+connect_debug_port u_ila_0/probe46 [get_nets [list {image_color_inst/pixel_y_pipe_reg_n_0_[19][4]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe47]
+set_property port_width 1 [get_debug_ports u_ila_0/probe47]
+connect_debug_port u_ila_0/probe47 [get_nets [list {image_color_inst/pixel_y_pipe_reg_n_0_[19][5]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe48]
+set_property port_width 1 [get_debug_ports u_ila_0/probe48]
+connect_debug_port u_ila_0/probe48 [get_nets [list {image_color_inst/pixel_y_pipe_reg_n_0_[19][6]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe49]
+set_property port_width 1 [get_debug_ports u_ila_0/probe49]
+connect_debug_port u_ila_0/probe49 [get_nets [list {image_color_inst/pixel_y_pipe_reg_n_0_[19][7]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe50]
+set_property port_width 1 [get_debug_ports u_ila_0/probe50]
+connect_debug_port u_ila_0/probe50 [get_nets [list {image_color_inst/pixel_y_pipe_reg_n_0_[19][8]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe51]
+set_property port_width 1 [get_debug_ports u_ila_0/probe51]
+connect_debug_port u_ila_0/probe51 [get_nets [list {image_color_inst/pixel_y_pipe_reg_n_0_[19][9]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe52]
+set_property port_width 1 [get_debug_ports u_ila_0/probe52]
+connect_debug_port u_ila_0/probe52 [get_nets [list {image_color_inst/pixel_y_pipe_reg_n_0_[19][10]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe53]
+set_property port_width 1 [get_debug_ports u_ila_0/probe53]
+connect_debug_port u_ila_0/probe53 [get_nets [list Video_add_rectangular_inst/vsync_o]]
 set_property C_CLK_INPUT_FREQ_HZ 300000000 [get_debug_cores dbg_hub]
 set_property C_ENABLE_CLK_DIVIDER false [get_debug_cores dbg_hub]
 set_property C_USER_SCAN_CHAIN 1 [get_debug_cores dbg_hub]
