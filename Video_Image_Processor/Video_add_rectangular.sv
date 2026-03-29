@@ -164,7 +164,7 @@ assign draw_color_box = ((y_cnt == color_y_min || y_cnt == color_y_max)
                        && (y_cnt >= color_y_min && y_cnt <= color_y_max));
 
 // 输出优先级：运动框 > 颜色框 > 原图
-assign rgb_data_o = border_flag_final_r ? 24'hff_00_00 :  // 红色运动框
+assign rgb_data_o = (border_flag_final_r && !inter_border_flag_final) ? 24'hff_00_00 :  // 红色运动框
                     draw_color_box      ? 24'h00_ff_00 :  // 绿色颜色框
                     rgb_data_i_r2;                         // 原图
 

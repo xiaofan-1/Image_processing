@@ -81,7 +81,7 @@ always@(posedge clk or negedge rst_n) begin
 end
 
 wire pixel_valid;
-assign pixel_valid = (per_img_Bit == 1'b1 && x_cnt > frame_left && x_cnt < frame_right && y_cnt > frame_top && y_cnt < frame_bottom);
+assign pixel_valid = (per_img_Bit == 1'b0 && x_cnt > frame_left && x_cnt < frame_right && y_cnt > frame_top && y_cnt < frame_bottom);
 
 reg pixel_valid_r;
 always @(posedge clk or negedge rst_n) begin
@@ -146,7 +146,8 @@ endgenerate
 //检测并标记目标需要两个像素时钟
 //===========================================================================
 integer j ;
-reg [ 3:0] target_cnt;
+
+reg [ 4:0] target_cnt; 
 reg [15:0] new_target_flag;		//检测到新目标的投票箱	 
 
 always@(posedge clk or negedge rst_n)begin
@@ -156,7 +157,7 @@ always@(posedge clk or negedge rst_n)begin
             target_pos[j] <= {1'b0,12'd0,12'd0,12'd0,12'd0};
         end
         new_target_flag	<= 16'd0;
-        target_cnt 		<= 4'd0;
+        target_cnt 		<= 5'd0;
     end
         //在一帧开始进行初始化
     else if(vsync_neg_flag)begin  
@@ -164,7 +165,7 @@ always@(posedge clk or negedge rst_n)begin
             target_pos[j] <= {1'b0,12'd0,12'd0,12'd0,12'd0};
         end
         new_target_flag	<= 16'd0;
-        target_cnt 		<= 4'd0;
+        target_cnt 		<= 5'd0;
     end  
     else begin 
     //------------------------------------------
@@ -192,8 +193,10 @@ always@(posedge clk or negedge rst_n)begin
         //第二个时钟周期，根据投票结果，将候选数据更新到运动目标列表中
         if(per_frame_clken_r && pixel_valid_r) begin 
             if(new_target_flag == 16'hffff)begin  		//全票通过，标志着出现新的运动目标 
-                target_pos[target_cnt] <= {1'b1,y_cnt_r,x_cnt_r,y_cnt_r,x_cnt_r};  // 49bit = 1 + 12 + 12 + 12 + 12
-                target_cnt <= target_cnt + 1'b1;
+                if (target_cnt < 5'd16) begin 
+                    target_pos[target_cnt[3:0]] <= {1'b1,y_cnt_r,x_cnt_r,y_cnt_r,x_cnt_r};  
+                    target_cnt <= target_cnt + 1'b1;
+                end
             end	
             else if (new_target_flag > 16'd0)begin		//出现被标记为运动目标的像素点，但是落在运动目标列表中某个元素的临域内
             
@@ -235,6 +238,16 @@ reg [ 3:0] valid_target_cnt;    //最终有效的目标数
 
 reg	[48:0] target_pos_reg[15:0];//临时寄存各坐标
 
+// 🌟 新增：底层专属防闪烁寄存器 🌟
+reg [5:0] target_hold_cnt;   
+reg [3:0] last_valid_num;    
+
+// 定义当前目标的面积是否及格 (放宽到 4x4)
+wire current_target_valid;
+assign current_target_valid = ( (target_pos_reg[repet_target_cnt][35:24] - target_pos_reg[repet_target_cnt][11: 0] > 12'd4) &&
+                                (target_pos_reg[repet_target_cnt][47:36] - target_pos_reg[repet_target_cnt][23:12] > 12'd4) );
+
+
 always@(posedge clk or negedge rst_n) begin
     if(!rst_n) begin
         for(k=0; k<16; k = k+1) begin	
@@ -249,6 +262,8 @@ always@(posedge clk or negedge rst_n) begin
         delete_repet_state  <= 4'd0;
         
         target_num_out      <= 4'd0;
+        target_hold_cnt     <= 6'd0;
+        last_valid_num      <= 4'd0;
     end
     else begin
         case(delete_repet_state)
@@ -272,7 +287,17 @@ always@(posedge clk or negedge rst_n) begin
                     target_pos_valid    <= 1'b1;
                     delete_repet_state  <= 4'd0;
                     
-                    target_num_out      <= valid_target_cnt; //寄存最终合并之后的目标数目
+                    // 🌟底层终极零值桥接防抖：就算丢帧，强行保持目标存在30帧！
+                    if (valid_target_cnt > 0) begin
+                        target_num_out  <= valid_target_cnt;
+                        last_valid_num  <= valid_target_cnt;
+                        target_hold_cnt <= 6'd30; // 充满30帧锁定条
+                    end else if (target_hold_cnt > 0) begin
+                        target_hold_cnt <= target_hold_cnt - 1'b1; // 慢慢消耗锁定条
+                        target_num_out  <= last_valid_num;         // 保持上一次的合法数量
+                    end else begin
+                        target_num_out  <= 4'd0;                   // 30帧都没找回来，才承认目标归零
+                    end
                 end
                 else if(target_pos_reg[check_target_cnt][48] == 1'b0) begin    //如果比较目标的FLAG标志位为0，则当前目标检查完成    
                     delete_repet_state  <= 4'd2;
@@ -320,10 +345,13 @@ always@(posedge clk or negedge rst_n) begin
                 end
             end
           
-            4'd2: begin //目标检查完成，没有重复目标，将该目标写入最终的输出接口
-                target_pos_out[valid_target_cnt] <= target_pos_reg[repet_target_cnt];
+            4'd2: begin //目标检查完成，没有重复目标，准备将该目标写入最终的输出接口
                 
-                valid_target_cnt        <= valid_target_cnt + 1'b1; 
+                // 🌟放宽的面积验证，满足才推入最终队列
+                if (current_target_valid) begin
+                    target_pos_out[valid_target_cnt] <= target_pos_reg[repet_target_cnt];
+                    valid_target_cnt                 <= valid_target_cnt + 1'b1; 
+                end
                 
                 if(repet_target_cnt < 4'd14) begin //检查下一个目标
                     repet_target_cnt    <= repet_target_cnt + 1'b1; //最大值为14
@@ -338,7 +366,24 @@ always@(posedge clk or negedge rst_n) begin
                     target_pos_valid    <= 1'b1;    //所有目标比较完成
                     delete_repet_state  <= 4'd0;
                     
-                    target_num_out      <= valid_target_cnt; //寄存最终合并之后的目标数目
+                    // 🌟同样加入防闪烁桥接 (带上本周期可能发生的新增量)
+                    if (current_target_valid) begin 
+                        // 如果最后一拍还增加了一个，说明总目标数是 valid_target_cnt+1
+                        target_num_out  <= valid_target_cnt + 1'b1;
+                        last_valid_num  <= valid_target_cnt + 1'b1;
+                        target_hold_cnt <= 6'd30;
+                    end else if (valid_target_cnt > 0) begin
+                        // 之前就有积累合法目标
+                        target_num_out  <= valid_target_cnt;
+                        last_valid_num  <= valid_target_cnt;
+                        target_hold_cnt <= 6'd30;
+                    end else if (target_hold_cnt > 0) begin
+                        // 进入丢失等待期
+                        target_hold_cnt <= target_hold_cnt - 1'b1;
+                        target_num_out  <= last_valid_num;
+                    end else begin
+                        target_num_out  <= 4'd0;
+                    end
                 end
             end
     
@@ -347,24 +392,4 @@ always@(posedge clk or negedge rst_n) begin
     end
 end
 
-/*
-/////////////////////////////////////////
-//一帧统计结束后，寄存输出结果
-integer k;
-
-always@(posedge clk or negedge rst_n)
-begin
-    if(!rst_n) begin
-        for(k=0; k<16; k = k+1) begin	
-            target_pos_out[k] <= {1'b0,10'd0,10'd0,10'd0,10'd0};
-        end
-    end
-    else if(vsync_pos_flag)begin   //一帧统计结束后，寄存输出结果
-        for(k=0; k<16; k = k+1) begin	
-            target_pos_out[k] <= target_pos[k];
-        end
-    end
-end
-*/
-
-endmodule 
+endmodule
