@@ -114,17 +114,56 @@ always @(posedge clk or negedge rst_n) begin
 end
 wire rx_done_pulse = rx_done && !rx_done_d1;
 
+
+//===========================================================================
+// 🌟 终极多目标防抖：峰值包络保持滤波器 (Peak Hold Envelope Filter) 🌟
+// 专门解决多目标 3-2-3-1 乱跳的问题！
+// 只要看到更大的数字(比如3)，立刻重置计时器。如果数字变小(比如变成2)，
+// 必须连续保持 0.5 秒都不变回 3，才承认数字真的减小了。
+//===========================================================================
+reg [3:0]  smooth_target_num;
+reg [23:0] target_hold_cnt;
+parameter HOLD_TIME_MAX = 24'd13_500_000; // 0.5秒 @ 27MHz 时钟
+
+always @(posedge clk or negedge rst_n) begin
+    if(!rst_n) begin
+        smooth_target_num <= 4'd0;
+        target_hold_cnt   <= 24'd0;
+    end else begin
+        // 核心：只要底层读到的数字 大于等于 当前平滑输出的数字
+        if (target_num >= smooth_target_num) begin
+            // 立刻更新为高分，并且把“掉线倒计时”清空！
+            // 这样 3-2-3-2 里面那个 3 就会无限刷新计时器，牢牢锁住最高峰。
+            smooth_target_num <= target_num;
+            target_hold_cnt   <= 24'd0;
+        end 
+        else begin
+            // 目标数量变少了 (比如从 3 瞬间掉到 2 或 1)
+            // 开启耐心等待计时！
+            if (target_hold_cnt < HOLD_TIME_MAX) begin
+                target_hold_cnt <= target_hold_cnt + 1'b1;
+            end else begin
+                // 如果超过了 0.5秒 还没跳回 3，才无奈承认它真的少了一个目标
+                smooth_target_num <= target_num;
+                target_hold_cnt   <= 24'd0;
+            end
+        end
+    end
+end
+
 //===========================================================================
 // 3. 词典库 (String ROM) 
 //===========================================================================
 reg  [31:0] input_ascii_reg; 
 
-// 🌟 核心修复：扩大 ROM 地址宽度到 10 位，以容纳庞大的说明书文本！
 reg  [9:0] rom_addr;
 reg  [7:0] rom_data;
 
-wire [7:0] target_tens = 8'h30 + (target_num / 10);
-wire [7:0] target_ones = 8'h30 + (target_num % 10);
+reg [3:0]  last_target_num;
+
+// 使用平滑锁定后的数值进行转换打印
+wire [7:0] target_tens = 8'h30 + (last_target_num / 10);
+wire [7:0] target_ones = 8'h30 + (last_target_num % 10);
 
 always @(*) begin
     case(rom_addr)
@@ -192,8 +231,7 @@ always @(*) begin
         10'd403:rom_data=target_ones; 
         10'd404:rom_data=8'h0D; 10'd405:rom_data=8'h0A;
 
-        // --- 🌟 全新新增：终极命令帮助手册 (精准排版版) ---
-        // 10'd410~10'd447: \r\n==================================\r\n (34个等号)
+        // 410-447: \r\n==================================\r\n (34个等号)
         10'd410:rom_data=8'h0D; 10'd411:rom_data=8'h0A;
         10'd412:rom_data="="; 10'd413:rom_data="="; 10'd414:rom_data="="; 10'd415:rom_data="="; 10'd416:rom_data="="; 10'd417:rom_data="="; 10'd418:rom_data="="; 10'd419:rom_data="=";
         10'd420:rom_data="="; 10'd421:rom_data="="; 10'd422:rom_data="="; 10'd423:rom_data="="; 10'd424:rom_data="="; 10'd425:rom_data="="; 10'd426:rom_data="="; 10'd427:rom_data="=";
@@ -201,43 +239,43 @@ always @(*) begin
         10'd436:rom_data="="; 10'd437:rom_data="="; 10'd438:rom_data="="; 10'd439:rom_data="="; 10'd440:rom_data="="; 10'd441:rom_data="="; 10'd442:rom_data="="; 10'd443:rom_data="=";
         10'd444:rom_data="="; 10'd445:rom_data="="; 10'd446:rom_data=8'h0D; 10'd447:rom_data=8'h0A;
 
-        // 10'd448~10'd483: || System Ready! Command List   ||\r\n
+        // 448-483: || System Ready! Command List   ||\r\n
         10'd448:rom_data="|"; 10'd449:rom_data="|"; 10'd450:rom_data=" "; 10'd451:rom_data="S"; 10'd452:rom_data="y"; 10'd453:rom_data="s"; 10'd454:rom_data="t"; 10'd455:rom_data="e"; 10'd456:rom_data="m"; 10'd457:rom_data=" ";
         10'd458:rom_data="R"; 10'd459:rom_data="e"; 10'd460:rom_data="a"; 10'd461:rom_data="d"; 10'd462:rom_data="y"; 10'd463:rom_data="!"; 10'd464:rom_data=" "; 10'd465:rom_data="C"; 10'd466:rom_data="o"; 10'd467:rom_data="m";
         10'd468:rom_data="m"; 10'd469:rom_data="a"; 10'd470:rom_data="n"; 10'd471:rom_data="d"; 10'd472:rom_data=" "; 10'd473:rom_data="L"; 10'd474:rom_data="i"; 10'd475:rom_data="s"; 10'd476:rom_data="t"; 10'd477:rom_data=" ";
         10'd478:rom_data=" "; 10'd479:rom_data=" "; 10'd480:rom_data="|"; 10'd481:rom_data="|"; 10'd482:rom_data=8'h0D; 10'd483:rom_data=8'h0A;
 
-        // 10'd484~10'd519: || FA01: Diff Thresh   (0~255)  ||\r\n
+        // 484-519: || FA01: Diff Thresh   (0~255)  ||\r\n
         10'd484:rom_data="|"; 10'd485:rom_data="|"; 10'd486:rom_data=" "; 10'd487:rom_data="F"; 10'd488:rom_data="A"; 10'd489:rom_data="0"; 10'd490:rom_data="1"; 10'd491:rom_data=":"; 10'd492:rom_data=" "; 10'd493:rom_data="D";
         10'd494:rom_data="i"; 10'd495:rom_data="f"; 10'd496:rom_data="f"; 10'd497:rom_data=" "; 10'd498:rom_data="T"; 10'd499:rom_data="h"; 10'd500:rom_data="r"; 10'd501:rom_data="e"; 10'd502:rom_data="s"; 10'd503:rom_data="h";
         10'd504:rom_data=" "; 10'd505:rom_data=" "; 10'd506:rom_data=" "; 10'd507:rom_data="("; 10'd508:rom_data="0"; 10'd509:rom_data="~"; 10'd510:rom_data="2"; 10'd511:rom_data="5"; 10'd512:rom_data="5"; 10'd513:rom_data=")";
         10'd514:rom_data=" "; 10'd515:rom_data=" "; 10'd516:rom_data="|"; 10'd517:rom_data="|"; 10'd518:rom_data=8'h0D; 10'd519:rom_data=8'h0A;
 
-        // 10'd520~10'd555: || FA02: Min Dist      (0~1280) ||\r\n
+        // 520-555: || FA02: Min Dist      (0~1280) ||\r\n
         10'd520:rom_data="|"; 10'd521:rom_data="|"; 10'd522:rom_data=" "; 10'd523:rom_data="F"; 10'd524:rom_data="A"; 10'd525:rom_data="0"; 10'd526:rom_data="2"; 10'd527:rom_data=":"; 10'd528:rom_data=" "; 10'd529:rom_data="M";
         10'd530:rom_data="i"; 10'd531:rom_data="n"; 10'd532:rom_data=" "; 10'd533:rom_data="D"; 10'd534:rom_data="i"; 10'd535:rom_data="s"; 10'd536:rom_data="t"; 10'd537:rom_data=" "; 10'd538:rom_data=" "; 10'd539:rom_data=" ";
         10'd540:rom_data=" "; 10'd541:rom_data=" "; 10'd542:rom_data=" "; 10'd543:rom_data="("; 10'd544:rom_data="0"; 10'd545:rom_data="~"; 10'd546:rom_data="1"; 10'd547:rom_data="2"; 10'd548:rom_data="8"; 10'd549:rom_data="0";
         10'd550:rom_data=")"; 10'd551:rom_data=" "; 10'd552:rom_data="|"; 10'd553:rom_data="|"; 10'd554:rom_data=8'h0D; 10'd555:rom_data=8'h0A;
 
-        // 10'd556~10'd591: || FA03: Move Area     (0~5)    ||\r\n
+        // 556-591: || FA03: Move Area     (0~5)    ||\r\n
         10'd556:rom_data="|"; 10'd557:rom_data="|"; 10'd558:rom_data=" "; 10'd559:rom_data="F"; 10'd560:rom_data="A"; 10'd561:rom_data="0"; 10'd562:rom_data="3"; 10'd563:rom_data=":"; 10'd564:rom_data=" "; 10'd565:rom_data="M";
         10'd566:rom_data="o"; 10'd567:rom_data="v"; 10'd568:rom_data="e"; 10'd569:rom_data=" "; 10'd570:rom_data="A"; 10'd571:rom_data="r"; 10'd572:rom_data="e"; 10'd573:rom_data="a"; 10'd574:rom_data=" "; 10'd575:rom_data=" ";
         10'd576:rom_data=" "; 10'd577:rom_data=" "; 10'd578:rom_data=" "; 10'd579:rom_data="("; 10'd580:rom_data="0"; 10'd581:rom_data="~"; 10'd582:rom_data="5"; 10'd583:rom_data=")"; 10'd584:rom_data=" "; 10'd585:rom_data=" ";
         10'd586:rom_data=" "; 10'd587:rom_data=" "; 10'd588:rom_data="|"; 10'd589:rom_data="|"; 10'd590:rom_data=8'h0D; 10'd591:rom_data=8'h0A;
 
-        // 10'd592~10'd627: || FA04: Color Area    (0~4)    ||\r\n
+        // 592-627: || FA04: Color Area    (0~4)    ||\r\n
         10'd592:rom_data="|"; 10'd593:rom_data="|"; 10'd594:rom_data=" "; 10'd595:rom_data="F"; 10'd596:rom_data="A"; 10'd597:rom_data="0"; 10'd598:rom_data="4"; 10'd599:rom_data=":"; 10'd600:rom_data=" "; 10'd601:rom_data="C";
         10'd602:rom_data="o"; 10'd603:rom_data="l"; 10'd604:rom_data="o"; 10'd605:rom_data="r"; 10'd606:rom_data=" "; 10'd607:rom_data="A"; 10'd608:rom_data="r"; 10'd609:rom_data="e"; 10'd610:rom_data="a"; 10'd611:rom_data=" ";
         10'd612:rom_data=" "; 10'd613:rom_data=" "; 10'd614:rom_data=" "; 10'd615:rom_data="("; 10'd616:rom_data="0"; 10'd617:rom_data="~"; 10'd618:rom_data="4"; 10'd619:rom_data=")"; 10'd620:rom_data=" "; 10'd621:rom_data=" ";
         10'd622:rom_data=" "; 10'd623:rom_data=" "; 10'd624:rom_data="|"; 10'd625:rom_data="|"; 10'd626:rom_data=8'h0D; 10'd627:rom_data=8'h0A;
 
-        // 10'd628~10'd663: || FA05: Toggle Monitor         ||\r\n
+        // 628-663: || FA05: Toggle Monitor         ||\r\n
         10'd628:rom_data="|"; 10'd629:rom_data="|"; 10'd630:rom_data=" "; 10'd631:rom_data="F"; 10'd632:rom_data="A"; 10'd633:rom_data="0"; 10'd634:rom_data="5"; 10'd635:rom_data=":"; 10'd636:rom_data=" "; 10'd637:rom_data="T";
         10'd638:rom_data="o"; 10'd639:rom_data="g"; 10'd640:rom_data="g"; 10'd641:rom_data="l"; 10'd642:rom_data="e"; 10'd643:rom_data=" "; 10'd644:rom_data="M"; 10'd645:rom_data="o"; 10'd646:rom_data="n"; 10'd647:rom_data="i";
         10'd648:rom_data="t"; 10'd649:rom_data="o"; 10'd650:rom_data="r"; 10'd651:rom_data=" "; 10'd652:rom_data=" "; 10'd653:rom_data=" "; 10'd654:rom_data=" "; 10'd655:rom_data=" "; 10'd656:rom_data=" "; 10'd657:rom_data=" ";
         10'd658:rom_data=" "; 10'd659:rom_data=" "; 10'd660:rom_data="|"; 10'd661:rom_data="|"; 10'd662:rom_data=8'h0D; 10'd663:rom_data=8'h0A;
 
-        // 10'd664~10'd699: ==================================\r\n (34个等号)
+        // 664-699: ==================================\r\n (34个等号)
         10'd664:rom_data="="; 10'd665:rom_data="="; 10'd666:rom_data="="; 10'd667:rom_data="="; 10'd668:rom_data="="; 10'd669:rom_data="="; 10'd670:rom_data="="; 10'd671:rom_data="="; 10'd672:rom_data="="; 10'd673:rom_data="=";
         10'd674:rom_data="="; 10'd675:rom_data="="; 10'd676:rom_data="="; 10'd677:rom_data="="; 10'd678:rom_data="="; 10'd679:rom_data="="; 10'd680:rom_data="="; 10'd681:rom_data="="; 10'd682:rom_data="="; 10'd683:rom_data="=";
         10'd684:rom_data="="; 10'd685:rom_data="="; 10'd686:rom_data="="; 10'd687:rom_data="="; 10'd688:rom_data="="; 10'd689:rom_data="="; 10'd690:rom_data="="; 10'd691:rom_data="="; 10'd692:rom_data="="; 10'd693:rom_data="=";
@@ -248,10 +286,9 @@ always @(*) begin
 end
 
 //===========================================================================
-//自动打字员 (Print Engine FSM)
+// 4. 自动打字员 (Print Engine FSM)
 //===========================================================================
 reg        print_req;
-// 🌟 同步扩大边界地址宽度到 10 位！
 reg  [9:0] print_start;
 reg  [9:0] print_end;
 reg        print_done;
@@ -300,18 +337,18 @@ always @(posedge clk or negedge rst_n) begin
 end
 
 //===========================================================================
-// 5. 终端主控大脑 (Main CLI FSM) 带完美拦截与越界防护版
+// 5. 终端主控大脑 (Main CLI FSM) 
 //===========================================================================
 reg [5:0]  cli_state; 
 reg [31:0] rx_cmd_reg;
 reg [15:0] input_value;
 reg        monitor_en;
-reg [3:0]  last_target_num;
 reg [2:0]  active_cmd_id;
 reg [7:0]  move_area_sel;
 reg [7:0]  color_area_sel;
 
 reg [23:0] power_delay_cnt; 
+reg [23:0] auto_print_cnt; 
 
 localparam S_POWER_DELAY = 6'd0;
 
@@ -347,7 +384,6 @@ localparam S_WAIT_OK_PRINT  = 6'd28;
 localparam S_PRINT_TGT      = 6'd29;
 localparam S_WAIT_TGT_PRINT = 6'd30;
 
-// 🌟 新增：打印帮助说明书的状态！
 localparam S_PRINT_HELP     = 6'd31;
 localparam S_WAIT_HELP_D    = 6'd32;
 
@@ -355,17 +391,18 @@ always @(posedge clk or negedge rst_n) begin
     if(!rst_n) begin
         cli_state       <= S_POWER_DELAY; 
         power_delay_cnt <= 24'd0;         
+        auto_print_cnt  <= 24'd0;         
         
         rx_cmd_reg      <= 32'd0;
         input_value     <= 16'd0;
         input_ascii_reg <= 32'h30_30_30_30; 
         print_req       <= 1'b0;
         monitor_en      <= 1'b0;
-        last_target_num <= 4'd15;
+        last_target_num <= 4'd15; 
         active_cmd_id   <= 3'd0;
         
-        diff_value      <= 8'd60;
-        min_dist        <= 12'd30;
+        diff_value      <= 8'd30;
+        min_dist        <= 12'd60;
         move_area_sel   <= 8'd5;
         color_area_sel  <= 8'd2;
     end else begin
@@ -406,24 +443,16 @@ always @(posedge clk or negedge rst_n) begin
             S_WAIT_ETH:    if(eth_ready) cli_state <= S_PRINT_ETH;
             S_PRINT_ETH:   begin print_start <= 10'd220; print_end <= 10'd247; print_req <= 1'b1; cli_state <= S_WAIT_ETH_D; end
             
-            // 🌟 拦截：以太网完成后，不去 IDLE，而是去打印命令帮助手册！
             S_WAIT_ETH_D:  if(print_done) cli_state <= S_PRINT_HELP;
 
-            // 🌟 打印刚写好的超级命令列表
             S_PRINT_HELP:  begin print_start <= 10'd410; print_end <= 10'd699; print_req <= 1'b1; cli_state <= S_WAIT_HELP_D; end
             S_WAIT_HELP_D: if(print_done) cli_state <= S_IDLE; 
 
             // --- 待机与连续输入统一处理池 ---
             S_IDLE: begin
-                // 1. 监控模式打印中断
-                if((print_state == 3'd0) && monitor_en && (target_num != last_target_num)) begin
-                    last_target_num <= target_num;
-                    cli_state       <= S_PRINT_TGT;
-                end
-                
-                // 2. 统一接收处理
                 if(rx_done_pulse) begin
-                    rx_cmd_reg <= {rx_cmd_reg[23:0], rx_data};
+                    auto_print_cnt <= 24'd0; // 如果收到你的按键指令，立刻重置心跳计时器
+                    rx_cmd_reg     <= {rx_cmd_reg[23:0], rx_data};
                     
                     if({rx_cmd_reg[23:0], rx_data} == 32'h46_41_30_31) begin 
                         active_cmd_id <= 3'd1; monitor_en <= 1'b0; rx_cmd_reg <= 0; cli_state <= S_ASK_VAL; 
@@ -441,18 +470,12 @@ always @(posedge clk or negedge rst_n) begin
                         monitor_en <= ~monitor_en; active_cmd_id <= 3'd0; rx_cmd_reg <= 0; 
                         input_value <= 16'd0; input_ascii_reg <= 32'h30_30_30_30; 
                     end
-                    // 防乱敲非法指令
                     else if({rx_cmd_reg[23:8]} == 16'h46_41) begin
-                        active_cmd_id <= 3'd0; 
-                        rx_cmd_reg <= 0; 
-                        input_value <= 16'd0; 
-                        input_ascii_reg <= 32'h30_30_30_30;
-                        cli_state <= S_PRINT_ERR;
+                        active_cmd_id <= 3'd0; rx_cmd_reg <= 0; input_value <= 16'd0; 
+                        input_ascii_reg <= 32'h30_30_30_30; cli_state <= S_PRINT_ERR;
                     end
-                    // 遇到回车键终极校验清算
                     else if(rx_data == 8'h0D || rx_data == 8'h0A) begin
                         rx_cmd_reg <= 32'd0; 
-
                         if(rx_cmd_reg[7:0] != 8'h0D && rx_cmd_reg[7:0] != 8'h0A && rx_cmd_reg[7:0] != 8'h00) begin
                             if(active_cmd_id != 3'd0) begin
                                 if(rx_cmd_reg[7:0] >= 8'h30 && rx_cmd_reg[7:0] <= 8'h39) begin
@@ -460,8 +483,7 @@ always @(posedge clk or negedge rst_n) begin
                                 end else begin
                                     cli_state <= S_PRINT_ERR; 
                                 end
-                            end
-                            else begin
+                            end else begin
                                 cli_state <= S_PRINT_ERR;
                             end
                         end
@@ -475,13 +497,33 @@ always @(posedge clk or negedge rst_n) begin
                         end
                     end
                 end
+                
+                // 🌟 连续心跳式打印逻辑！(基于峰值保持后的平滑数值 smooth_target_num)
+                else if((print_state == 3'd0) && monitor_en) begin
+                    // 情况1：真的出现了数值变动，立刻刷新！
+                    if (smooth_target_num != last_target_num) begin
+                        last_target_num <= smooth_target_num;
+                        auto_print_cnt  <= 24'd0;
+                        cli_state       <= S_PRINT_TGT;
+                    end 
+                    // 情况2：数值没变，但是为了让你看到连续数据，每 0.25 秒重新发一次！
+                    else if (auto_print_cnt >= 24'd6_750_000) begin 
+                        auto_print_cnt  <= 24'd0;
+                        cli_state       <= S_PRINT_TGT;
+                    end 
+                    else begin
+                        auto_print_cnt  <= auto_print_cnt + 1'b1;
+                    end
+                end
+                
+                else begin
+                    auto_print_cnt <= 24'd0;
+                end
             end
             
             S_ASK_VAL: begin
                 print_start <= 10'd250; print_end <= 10'd269; print_req <= 1'b1; 
-                input_value <= 16'd0; 
-                input_ascii_reg <= 32'h30_30_30_30; 
-                cli_state   <= S_WAIT_VAL_PRINT; 
+                input_value <= 16'd0; input_ascii_reg <= 32'h30_30_30_30; cli_state <= S_WAIT_VAL_PRINT; 
             end
             
             S_WAIT_VAL_PRINT: begin
@@ -519,9 +561,7 @@ always @(posedge clk or negedge rst_n) begin
             
             S_WAIT_ERR_PRINT: begin
                 if(print_done) begin
-                    input_value <= 16'd0; 
-                    input_ascii_reg <= 32'h30_30_30_30;
-                    cli_state <= S_IDLE; 
+                    input_value <= 16'd0; input_ascii_reg <= 32'h30_30_30_30; cli_state <= S_IDLE; 
                 end
             end
             
@@ -531,15 +571,12 @@ always @(posedge clk or negedge rst_n) begin
                 end else begin
                     print_start <= 10'd360; print_end <= 10'd384; 
                 end
-                print_req <= 1'b1; 
-                cli_state <= S_WAIT_OK_PRINT; 
+                print_req <= 1'b1; cli_state <= S_WAIT_OK_PRINT; 
             end
             
             S_WAIT_OK_PRINT: begin
                 if(print_done) begin
-                    input_value <= 16'd0; 
-                    input_ascii_reg <= 32'h30_30_30_30;
-                    cli_state <= S_IDLE; 
+                    input_value <= 16'd0; input_ascii_reg <= 32'h30_30_30_30; cli_state <= S_IDLE; 
                 end
             end
             
