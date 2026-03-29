@@ -22,13 +22,13 @@ module Top(
     output  wire    [0:0]   ddr3_odt            ,
     //hdmi_in
     output  wire            rstn_out            ,
-    input   wire            pixclk_in           ,                            
-    input   wire            vs_in               , 
+    input   wire            pixclk_in           ,
+    input   wire            vs_in               ,
     input   wire            hs_in               , 
     input   wire            de_in               ,
-    input   wire    [7:0]   r_in                , 
-    input   wire    [7:0]   g_in                , 
-    input   wire    [7:0]   b_in                , 
+    input   wire    [7:0]   r_in                ,
+    input   wire    [7:0]   g_in                ,
+    input   wire    [7:0]   b_in                ,
     output  wire            init_over           ,
     output  wire            hdmi_scl            ,
     inout   wire            hdmi_sda            ,
@@ -36,7 +36,7 @@ module Top(
     output	wire			tmds_clk_n          ,
     output	wire			tmds_clk_p          ,
     output	wire [2:0]      tmds_data_n         ,
-    output	wire [2:0]      tmds_data_p         ,    
+    output	wire [2:0]      tmds_data_p         ,
     //key
     input   wire    [4:0]   key                 ,
     //uart
@@ -148,6 +148,65 @@ always @(posedge cfg_clk or negedge sys_rst_n) begin
 end
 
 assign rstn_out = (rstn_1ms == 16'h2710);
+
+//===========================================================================
+// 输入信号vs打拍
+//===========================================================================
+reg vs_in_reg0;
+reg vs_in_reg1;
+
+reg camera_vsync_0_reg0;
+reg camera_vsync_0_reg1;
+
+reg camera_vsync_1_reg0;
+reg camera_vsync_1_reg1;
+
+reg camera_vsync_2_reg0;
+reg camera_vsync_2_reg1;
+
+always @(posedge pixclk_in or negedge rstn_out) begin
+    if(!rstn_out) begin
+        vs_in_reg0 <= 1'b0;
+        vs_in_reg1 <= 1'b0;
+    end
+    else begin
+        vs_in_reg0 <= vs_in;
+        vs_in_reg1 <= vs_in_reg0;
+    end
+end
+
+always @(posedge camera_clk_0 or negedge rstn_out) begin
+    if(!rstn_out) begin
+        camera_vsync_0_reg0 <= 1'b0;
+        camera_vsync_0_reg1 <= 1'b0;
+    end
+    else begin
+        camera_vsync_0_reg0 <= camera_vsync_0;
+        camera_vsync_0_reg1 <= camera_vsync_0_reg0;
+    end
+end
+
+always @(posedge camera_clk_0 or negedge rstn_out) begin
+    if(!rstn_out) begin
+        camera_vsync_1_reg0 <= 1'b0;
+        camera_vsync_1_reg1 <= 1'b0;
+    end
+    else begin
+        camera_vsync_1_reg0 <= camera_vsync_1;
+        camera_vsync_1_reg1 <= camera_vsync_1_reg0;
+    end
+end
+
+always @(posedge camera_clk_0 or negedge rstn_out) begin
+    if(!rstn_out) begin
+        camera_vsync_2_reg0 <= 1'b0;
+        camera_vsync_2_reg1 <= 1'b0;
+    end
+    else begin
+        camera_vsync_2_reg0 <= camera_vsync_2;
+        camera_vsync_2_reg1 <= camera_vsync_2_reg0;
+    end
+end
 
 //===========================================================================
 // key
