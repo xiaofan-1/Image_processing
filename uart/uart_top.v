@@ -458,17 +458,19 @@ always @(posedge clk or negedge rst_n) begin
                     if({rx_cmd_reg[23:0], rx_data} == 32'h46_41_30_30) begin  // 🌟新增：收到 FA00 后，主动跳到 S_BOOT 发起全套打印！
                         active_cmd_id <= 3'd0; monitor_en <= 1'b0; rx_cmd_reg <= 0; cli_state <= S_BOOT; 
                     end
-                    else if({rx_cmd_reg[23:0], rx_data} == 32'h46_41_30_31) begin 
+                    else if({rx_cmd_reg[23:0], rx_data} == 32'h46_41_30_31) begin  // FA01
+                        active_cmd_id <= 3'd1; monitor_en <= 1'b0; rx_cmd_reg <= 0; cli_state <= S_ASK_VAL; 
+                    end
+                    else if({rx_cmd_reg[23:0], rx_data} == 32'h46_41_30_32) begin  // FA02
                         active_cmd_id <= 3'd2; monitor_en <= 1'b0; rx_cmd_reg <= 0; cli_state <= S_ASK_VAL; 
                     end
-                    else if({rx_cmd_reg[23:0], rx_data} == 32'h46_41_30_33) begin 
+                    else if({rx_cmd_reg[23:0], rx_data} == 32'h46_41_30_33) begin  // FA03
                         active_cmd_id <= 3'd3; monitor_en <= 1'b0; rx_cmd_reg <= 0; cli_state <= S_ASK_VAL; 
                     end
-                    else if({rx_cmd_reg[23:0], rx_data} == 32'h46_41_30_34) begin 
+                    else if({rx_cmd_reg[23:0], rx_data} == 32'h46_41_30_34) begin  // FA04
                         active_cmd_id <= 3'd4; monitor_en <= 1'b0; rx_cmd_reg <= 0; cli_state <= S_ASK_VAL; 
                     end
-                    // 🌟 修改处：进入 FA05 后，不再是一次性切换状态，而是进入提示输入值的环节 S_ASK_VAL
-                    else if({rx_cmd_reg[23:0], rx_data} == 32'h46_41_30_35) begin 
+                    else if({rx_cmd_reg[23:0], rx_data} == 32'h46_41_30_35) begin  // FA05
                         active_cmd_id <= 3'd5; monitor_en <= 1'b0; rx_cmd_reg <= 0; cli_state <= S_ASK_VAL; 
                     end
                     else if({rx_cmd_reg[23:8]} == 16'h46_41) begin
