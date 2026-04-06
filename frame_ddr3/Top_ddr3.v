@@ -6,16 +6,23 @@ module Top_ddr3 #(
     parameter BURST_BITS             = 10   , //external memory user interface burst width
     parameter READ_DATA_BITS         = 16   , //external memory user interface read data width
     parameter WRITE_DATA_BITS        = 16   , //external memory user interface write data width
-    parameter BURST_SIZE             = 16   , //external memory user interface burst size
-    parameter FRAME_SIZE0            = 1280 * 720  ,
-    parameter FRAME_SIZE1            = 1280 * 720  ,
-    parameter FRAME_SIZE2            = 1280 * 720  ,
-    parameter FRAME_SIZE3            = 1280 * 720  ,
-    parameter FRAME_SIZE4            = 1280 * 720  ,
-    parameter FRAME_SIZE5            = 1280 * 720  
+    parameter BURST_SIZE             = 16     //external memory user interface burst size
+    // parameter FRAME_SIZE0            = 1280 * 720  ,
+    // parameter FRAME_SIZE1            = 1280 * 720  ,
+    // parameter FRAME_SIZE2            = 1280 * 720  ,
+    // parameter FRAME_SIZE3            = 1280 * 720  ,
+    // parameter FRAME_SIZE4            = 1280 * 720  ,
+    // parameter FRAME_SIZE5            = 1280 * 720  
 )(
     input   wire            clk_200M            ,
     input   wire            rst_n               ,
+
+    input   wire [19:0]     FRAME_SIZE0         ,
+    input   wire [19:0]     FRAME_SIZE1         ,
+    input   wire [19:0]     FRAME_SIZE2         ,
+    input   wire [19:0]     FRAME_SIZE3         ,
+    input   wire [19:0]     FRAME_SIZE4         ,
+    input   wire [19:0]     FRAME_SIZE5         ,
     //ddr3
     output  wire [14:0]     ddr3_addr           ,
     output  wire [2:0]      ddr3_ba             ,
@@ -192,11 +199,23 @@ wire                            rd_burst_finish;
 //===========================================================
 //channel 0
 //===========================================================
-localparam CH0_ADDR_0 = 0;
-localparam CH0_ADDR_1 = FRAME_SIZE0;
-localparam CH0_ADDR_2 = FRAME_SIZE0 * 2;
-localparam CH0_ADDR_3 = FRAME_SIZE0 * 3;
-localparam CH0_WR_RD_LEN = FRAME_SIZE0 / 16;
+// localparam CH0_ADDR_0 = 0;
+// localparam CH0_ADDR_1 = FRAME_SIZE0;
+// localparam CH0_ADDR_2 = FRAME_SIZE0 * 2;
+// localparam CH0_ADDR_3 = FRAME_SIZE0 * 3;
+// localparam CH0_WR_RD_LEN = FRAME_SIZE0 / 16;
+
+wire [25:0] CH0_ADDR_0;
+wire [25:0] CH0_ADDR_1;
+wire [25:0] CH0_ADDR_2;
+wire [25:0] CH0_ADDR_3;
+wire [25:0] CH0_WR_RD_LEN;
+
+assign CH0_ADDR_0 = 0;
+assign CH0_ADDR_1 = FRAME_SIZE0;
+assign CH0_ADDR_2 = FRAME_SIZE0 * 2;
+assign CH0_ADDR_3 = FRAME_SIZE0 * 3;
+assign CH0_WR_RD_LEN = FRAME_SIZE0 / 16;
 
 wire                            ch0_rd_burst_req;
 wire[BURST_BITS - 1:0]          ch0_rd_burst_len;
@@ -215,11 +234,23 @@ wire                            ch0_wr_burst_finish;
 //===========================================================
 //channel 1
 //===========================================================
-localparam CH1_ADDR_0 = CH0_ADDR_3 + FRAME_SIZE0;
-localparam CH1_ADDR_1 = CH1_ADDR_0 + FRAME_SIZE1;
-localparam CH1_ADDR_2 = CH1_ADDR_0 + FRAME_SIZE1 * 2;
-localparam CH1_ADDR_3 = CH1_ADDR_0 + FRAME_SIZE1 * 3;
-localparam CH1_WR_RD_LEN = FRAME_SIZE1 / 16;
+// localparam CH1_ADDR_0 = CH0_ADDR_3 + FRAME_SIZE0;
+// localparam CH1_ADDR_1 = CH1_ADDR_0 + FRAME_SIZE1;
+// localparam CH1_ADDR_2 = CH1_ADDR_0 + FRAME_SIZE1 * 2;
+// localparam CH1_ADDR_3 = CH1_ADDR_0 + FRAME_SIZE1 * 3;
+// localparam CH1_WR_RD_LEN = FRAME_SIZE1 / 16;
+
+wire [25:0] CH1_ADDR_0;
+wire [25:0] CH1_ADDR_1;
+wire [25:0] CH1_ADDR_2;
+wire [25:0] CH1_ADDR_3;
+wire [25:0] CH1_WR_RD_LEN;
+
+assign CH1_ADDR_0 = CH0_ADDR_3 + FRAME_SIZE0;
+assign CH1_ADDR_1 = CH1_ADDR_0 + FRAME_SIZE1;
+assign CH1_ADDR_2 = CH1_ADDR_0 + FRAME_SIZE1 * 2;
+assign CH1_ADDR_3 = CH1_ADDR_0 + FRAME_SIZE1 * 3;
+assign CH1_WR_RD_LEN = FRAME_SIZE1 / 16;
 
 wire                            ch1_rd_burst_req;
 wire[BURST_BITS - 1:0]          ch1_rd_burst_len;
@@ -238,11 +269,23 @@ wire                            ch1_wr_burst_finish;
 //===========================================================
 //channel 2
 //===========================================================
-localparam CH2_ADDR_0 = CH1_ADDR_3 + FRAME_SIZE1;
-localparam CH2_ADDR_1 = CH2_ADDR_0 + FRAME_SIZE2;
-localparam CH2_ADDR_2 = CH2_ADDR_0 + FRAME_SIZE2 * 2;
-localparam CH2_ADDR_3 = CH2_ADDR_0 + FRAME_SIZE2 * 3;   
-localparam CH2_WR_RD_LEN = FRAME_SIZE2 / 16;
+// localparam CH2_ADDR_0 = CH1_ADDR_3 + FRAME_SIZE1;
+// localparam CH2_ADDR_1 = CH2_ADDR_0 + FRAME_SIZE2;
+// localparam CH2_ADDR_2 = CH2_ADDR_0 + FRAME_SIZE2 * 2;
+// localparam CH2_ADDR_3 = CH2_ADDR_0 + FRAME_SIZE2 * 3;   
+// localparam CH2_WR_RD_LEN = FRAME_SIZE2 / 16;
+
+wire [25:0] CH2_ADDR_0;
+wire [25:0] CH2_ADDR_1;
+wire [25:0] CH2_ADDR_2;
+wire [25:0] CH2_ADDR_3;
+wire [25:0] CH2_WR_RD_LEN;
+
+assign CH2_ADDR_0 = CH1_ADDR_3 + FRAME_SIZE1;
+assign CH2_ADDR_1 = CH2_ADDR_0 + FRAME_SIZE2;
+assign CH2_ADDR_2 = CH2_ADDR_0 + FRAME_SIZE2 * 2;
+assign CH2_ADDR_3 = CH2_ADDR_0 + FRAME_SIZE2 * 3;
+assign CH2_WR_RD_LEN = FRAME_SIZE2 / 16;
 
 wire                            ch2_rd_burst_req;
 wire[BURST_BITS - 1:0]          ch2_rd_burst_len;
@@ -261,11 +304,23 @@ wire                            ch2_wr_burst_finish;
 //===========================================================
 //channel 3
 //===========================================================
-localparam CH3_ADDR_0 = CH2_ADDR_3 + FRAME_SIZE2;
-localparam CH3_ADDR_1 = CH3_ADDR_0 + FRAME_SIZE3;
-localparam CH3_ADDR_2 = CH3_ADDR_0 + FRAME_SIZE3 * 2;
-localparam CH3_ADDR_3 = CH3_ADDR_0 + FRAME_SIZE3 * 3;   
-localparam CH3_WR_RD_LEN = FRAME_SIZE3 / 16;
+// localparam CH3_ADDR_0 = CH2_ADDR_3 + FRAME_SIZE2;
+// localparam CH3_ADDR_1 = CH3_ADDR_0 + FRAME_SIZE3;
+// localparam CH3_ADDR_2 = CH3_ADDR_0 + FRAME_SIZE3 * 2;
+// localparam CH3_ADDR_3 = CH3_ADDR_0 + FRAME_SIZE3 * 3;   
+// localparam CH3_WR_RD_LEN = FRAME_SIZE3 / 16;
+
+wire [25:0] CH3_ADDR_0;
+wire [25:0] CH3_ADDR_1;
+wire [25:0] CH3_ADDR_2;
+wire [25:0] CH3_ADDR_3;
+wire [25:0] CH3_WR_RD_LEN;
+
+assign CH3_ADDR_0 = CH2_ADDR_3 + FRAME_SIZE2;
+assign CH3_ADDR_1 = CH3_ADDR_0 + FRAME_SIZE3;
+assign CH3_ADDR_2 = CH3_ADDR_0 + FRAME_SIZE3 * 2;
+assign CH3_ADDR_3 = CH3_ADDR_0 + FRAME_SIZE3 * 3;
+assign CH3_WR_RD_LEN = FRAME_SIZE3 / 16;
 
 wire                            ch3_rd_burst_req;
 wire[BURST_BITS - 1:0]          ch3_rd_burst_len;
@@ -284,11 +339,23 @@ wire                            ch3_wr_burst_finish;
 //===========================================================
 //channel 4
 //===========================================================
-localparam CH4_ADDR_0 = CH3_ADDR_3 + FRAME_SIZE3;
-localparam CH4_ADDR_1 = CH4_ADDR_0 + FRAME_SIZE4;
-localparam CH4_ADDR_2 = CH4_ADDR_0 + FRAME_SIZE4 * 2;
-localparam CH4_ADDR_3 = CH4_ADDR_0 + FRAME_SIZE4 * 3;   
-localparam CH4_WR_RD_LEN = FRAME_SIZE4 / 16;
+// localparam CH4_ADDR_0 = CH3_ADDR_3 + FRAME_SIZE3;
+// localparam CH4_ADDR_1 = CH4_ADDR_0 + FRAME_SIZE4;
+// localparam CH4_ADDR_2 = CH4_ADDR_0 + FRAME_SIZE4 * 2;
+// localparam CH4_ADDR_3 = CH4_ADDR_0 + FRAME_SIZE4 * 3;   
+// localparam CH4_WR_RD_LEN = FRAME_SIZE4 / 16;
+
+wire [25:0] CH4_ADDR_0;
+wire [25:0] CH4_ADDR_1;
+wire [25:0] CH4_ADDR_2;
+wire [25:0] CH4_ADDR_3;
+wire [25:0] CH4_WR_RD_LEN;
+
+assign CH4_ADDR_0 = CH3_ADDR_3 + FRAME_SIZE3;
+assign CH4_ADDR_1 = CH4_ADDR_0 + FRAME_SIZE4;
+assign CH4_ADDR_2 = CH4_ADDR_0 + FRAME_SIZE4 * 2;
+assign CH4_ADDR_3 = CH4_ADDR_0 + FRAME_SIZE4 * 3;
+assign CH4_WR_RD_LEN = FRAME_SIZE4 / 16;
 
 wire                            ch4_rd_burst_req;
 wire[BURST_BITS - 1:0]          ch4_rd_burst_len;
@@ -307,11 +374,23 @@ wire                            ch4_wr_burst_finish;
 //===========================================================
 //channel 5
 //===========================================================
-localparam CH5_ADDR_0 = CH4_ADDR_3 + FRAME_SIZE4;
-localparam CH5_ADDR_1 = CH5_ADDR_0 + FRAME_SIZE5;
-localparam CH5_ADDR_2 = CH5_ADDR_0 + FRAME_SIZE5 * 2;
-localparam CH5_ADDR_3 = CH5_ADDR_0 + FRAME_SIZE5 * 3;   
-localparam CH5_WR_RD_LEN = FRAME_SIZE5 / 16;
+// localparam CH5_ADDR_0 = CH4_ADDR_3 + FRAME_SIZE4;
+// localparam CH5_ADDR_1 = CH5_ADDR_0 + FRAME_SIZE5;
+// localparam CH5_ADDR_2 = CH5_ADDR_0 + FRAME_SIZE5 * 2;
+// localparam CH5_ADDR_3 = CH5_ADDR_0 + FRAME_SIZE5 * 3;   
+// localparam CH5_WR_RD_LEN = FRAME_SIZE5 / 16;
+
+wire [25:0] CH5_ADDR_0;
+wire [25:0] CH5_ADDR_1;
+wire [25:0] CH5_ADDR_2;
+wire [25:0] CH5_ADDR_3;
+wire [25:0] CH5_WR_RD_LEN;
+
+assign CH5_ADDR_0 = CH4_ADDR_3 + FRAME_SIZE4;
+assign CH5_ADDR_1 = CH5_ADDR_0 + FRAME_SIZE5;
+assign CH5_ADDR_2 = CH5_ADDR_0 + FRAME_SIZE5 * 2;
+assign CH5_ADDR_3 = CH5_ADDR_0 + FRAME_SIZE5 * 3;
+assign CH5_WR_RD_LEN = FRAME_SIZE5 / 16;
 
 wire                            ch5_rd_burst_req;
 wire[BURST_BITS - 1:0]          ch5_rd_burst_len;
