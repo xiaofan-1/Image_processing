@@ -2,7 +2,7 @@
 
 module Top(
     input   wire            sys_clk             ,
-    input   wire            sys_rst_n           ,
+    //input   wire            sys_rst_n           ,
     //ddr3
     output  wire    [14:0]  ddr3_addr           ,
     output  wire    [2:0]   ddr3_ba             ,
@@ -93,6 +93,8 @@ wire    pixclk_out;
 wire    pixclkx5_out;
 wire    rgmii_clk;
 
+wire    sys_rst_n;
+
 IBUF #(
    .IBUF_LOW_PWR("TRUE"),  // Low power (TRUE) vs. performance (FALSE) setting for referenced I/O standards
    .IOSTANDARD("DEFAULT")  // Specify the input I/O standard
@@ -121,7 +123,25 @@ ddr_clk ddr_clk_inst (
    // Clock in ports
     .clk_in1(sys_clk_in));      // input clk_in1 27MHZ
 
+//===========================================================================
+// system reset
+//===========================================================================
+reg         sys_rst_n_r = 1'b0;  
+reg  [23:0] rst_cnt = 24'd0;     
+
+always @(posedge sys_clk_in) begin
+    if (rst_cnt == 24'h00_00_ff) begin 
+        rst_cnt     <= rst_cnt;     
+        sys_rst_n_r <= 1'b1;       
+    end else begin
+        rst_cnt     <= rst_cnt + 1'b1;
+        sys_rst_n_r <= 1'b0;       
+    end
+end
+
+assign sys_rst_n = sys_rst_n_r;
 assign rst_n = locked_0 & locked_1 & sys_rst_n;
+
 //===========================================================================
 // HDMI
 //===========================================================================
@@ -148,65 +168,6 @@ always @(posedge cfg_clk or negedge sys_rst_n) begin
 end
 
 assign rstn_out = (rstn_1ms == 16'h2710);
-
-//===========================================================================
-// 输入信号vs打拍
-//===========================================================================
-reg vs_in_reg0;
-reg vs_in_reg1;
-
-reg camera_vsync_0_reg0;
-reg camera_vsync_0_reg1;
-
-reg camera_vsync_1_reg0;
-reg camera_vsync_1_reg1;
-
-reg camera_vsync_2_reg0;
-reg camera_vsync_2_reg1;
-
-always @(posedge pixclk_in or negedge rstn_out) begin
-    if(!rstn_out) begin
-        vs_in_reg0 <= 1'b0;
-        vs_in_reg1 <= 1'b0;
-    end
-    else begin
-        vs_in_reg0 <= vs_in;
-        vs_in_reg1 <= vs_in_reg0;
-    end
-end
-
-always @(posedge camera_clk_0 or negedge rstn_out) begin
-    if(!rstn_out) begin
-        camera_vsync_0_reg0 <= 1'b0;
-        camera_vsync_0_reg1 <= 1'b0;
-    end
-    else begin
-        camera_vsync_0_reg0 <= camera_vsync_0;
-        camera_vsync_0_reg1 <= camera_vsync_0_reg0;
-    end
-end
-
-always @(posedge camera_clk_0 or negedge rstn_out) begin
-    if(!rstn_out) begin
-        camera_vsync_1_reg0 <= 1'b0;
-        camera_vsync_1_reg1 <= 1'b0;
-    end
-    else begin
-        camera_vsync_1_reg0 <= camera_vsync_1;
-        camera_vsync_1_reg1 <= camera_vsync_1_reg0;
-    end
-end
-
-always @(posedge camera_clk_0 or negedge rstn_out) begin
-    if(!rstn_out) begin
-        camera_vsync_2_reg0 <= 1'b0;
-        camera_vsync_2_reg1 <= 1'b0;
-    end
-    else begin
-        camera_vsync_2_reg0 <= camera_vsync_2;
-        camera_vsync_2_reg1 <= camera_vsync_2_reg0;
-    end
-end
 
 //===========================================================================
 // key
@@ -259,25 +220,6 @@ assign cam_init_done1 = cam_init_done1_reg;
 assign cam_init_done2 = cam_init_done2_reg;
 assign hdmi_init_done = init_over;
 assign eth_init_done = eth_init_done_reg;
-
-// uart_top uart_top_inst(
-//     //input ports
-//     /*input   wire            */.clk              ( pixclk_out       ) ,
-//     /*input   wire            */.rst_n            ( rst_n            ) ,
-//     /*input   wire    [3:0]   */.target_num       ( target_num       ) ,
-//     /*input   wire            */.uart_rx          ( uart_rx          ) ,
-//     /*output  wire            */.uart_tx          ( uart_tx          ) ,
-//     /*output  reg     [7:0]   */.diff_value       ( diff_value       ) ,
-//     /*output  reg     [11:0]  */.cur_frame_top    ( cur_frame_top    ) ,
-//     /*output  reg     [11:0]  */.cur_frame_bottom ( cur_frame_bottom ) ,
-//     /*output  reg     [11:0]  */.cur_frame_left   ( cur_frame_left   ) ,
-//     /*output  reg     [11:0]  */.cur_frame_right  ( cur_frame_right  ) ,
-//     /*output  reg     [11:0]  */.cur_color_top    ( cur_color_top    ) ,
-//     /*output  reg     [11:0]  */.cur_color_bottom ( cur_color_bottom ) ,
-//     /*output  reg     [11:0]  */.cur_color_left   ( cur_color_left   ) ,
-//     /*output  reg     [11:0]  */.cur_color_right  ( cur_color_right  ) ,
-//     /*output  reg     [11:0]  */.min_dist         ( min_dist         ) 
-// );
 
 uart_top uart_top_inst( 
     //input ports
@@ -389,6 +331,106 @@ localparam  H_ACT    = 12'd1280;
 //     /*output  reg     [COCLOR_DEPP-1:0]   */.g_out   ( bar_g      ) , 
 //     /*output  reg     [COCLOR_DEPP-1:0]   */.b_out   ( bar_b      )
 // );
+
+//===========================================================================
+// HDMI 输入信号同步
+//===========================================================================
+wire pixclk_in_bufg;
+
+BUFG BUFG_pixclk_in (
+    .O(pixclk_in_bufg), // 缓冲后的时钟输出，连全网
+    .I(pixclk_in)       // 接入未在时钟脚的输入引脚
+);
+
+reg [7:0]  r_in_r1, r_in_r2;
+reg [7:0]  g_in_r1, g_in_r2;
+reg [7:0]  b_in_r1, b_in_r2;
+reg        de_in_r1, de_in_r2;
+reg        vs_in_r1, vs_in_r2;
+reg        hs_in_r1, hs_in_r2;
+
+always @(posedge pixclk_in_bufg) begin
+    r_in_r1  <= r_in;
+    g_in_r1  <= g_in;
+    b_in_r1  <= b_in;
+    de_in_r1 <= de_in;
+    vs_in_r1 <= vs_in;
+    hs_in_r1 <= hs_in;
+    r_in_r2  <= r_in_r1;
+    g_in_r2  <= g_in_r1;
+    b_in_r2  <= b_in_r1;
+    de_in_r2 <= de_in_r1;
+    vs_in_r2 <= vs_in_r1;
+    hs_in_r2 <= hs_in_r1;
+end
+
+//===========================================================================
+// video_mode
+//===========================================================================
+wire [2:0] mode_data;
+
+wire [11:0] video_left_offset_0;
+wire [11:0] video_top_offset_0;
+wire [11:0] video_width_0;
+wire [11:0] video_height_0;
+
+wire [11:0] video_left_offset_1;
+wire [11:0] video_top_offset_1;
+wire [11:0] video_width_1;
+wire [11:0] video_height_1;
+
+wire [11:0] video_left_offset_2;
+wire [11:0] video_top_offset_2;
+wire [11:0] video_width_2;
+wire [11:0] video_height_2;
+
+wire [11:0] video_left_offset_3;
+wire [11:0] video_top_offset_3;
+wire [11:0] video_width_3;
+wire [11:0] video_height_3;
+
+wire [19:0] frame_size_0;
+wire [19:0] frame_size_1;
+wire [19:0] frame_size_2;
+wire [19:0] frame_size_3;
+
+video_mode video_mode_inst(
+    /*input   wire                */.clk                 ( pixclk_out       ) ,    
+    /*input   wire                */.rst_n               ( rst_n            ) ,
+    /*input   wire                */.key_mode            ( btn_flag[0]      ) ,
+
+    /*input   wire                */.camera_vsync_0      ( cam_vsync_0      ) ,
+    /*input   wire                */.camera_vsync_1      ( cam_vsync_1      ) ,
+    /*input   wire                */.camera_vsync_2      ( cam_vsync_2      ) ,
+    /*input   wire                */.vs_in               ( vs_in_r2         ) ,
+
+    /*output  reg     [2:0]       */.mode_data           ( mode_data        ) , 
+    
+    /*output  reg     [11:0]      */.video_left_offset_0 ( video_left_offset_0 ) ,
+    /*output  reg     [11:0]      */.video_top_offset_0  ( video_top_offset_0  ) ,
+    /*output  reg     [11:0]      */.video_width_0       ( video_width_0       ) ,
+    /*output  reg     [11:0]      */.video_height_0      ( video_height_0      ) ,
+
+    /*output  reg     [11:0]      */.video_left_offset_1 ( video_left_offset_1 ) ,
+    /*output  reg     [11:0]      */.video_top_offset_1  ( video_top_offset_1  ) ,
+    /*output  reg     [11:0]      */.video_width_1       ( video_width_1       ) ,
+    /*output  reg     [11:0]      */.video_height_1      ( video_height_1      ) ,
+
+    /*output  reg     [11:0]      */.video_left_offset_2 ( video_left_offset_2 ) ,
+    /*output  reg     [11:0]      */.video_top_offset_2  ( video_top_offset_2  ) ,
+    /*output  reg     [11:0]      */.video_width_2       ( video_width_2       ) ,
+    /*output  reg     [11:0]      */.video_height_2      ( video_height_2      ) ,
+
+    /*output  reg     [11:0]      */.video_left_offset_3 ( video_left_offset_3 ) ,
+    /*output  reg     [11:0]      */.video_top_offset_3  ( video_top_offset_3  ) ,
+    /*output  reg     [11:0]      */.video_width_3       ( video_width_3       ) ,
+    /*output  reg     [11:0]      */.video_height_3      ( video_height_3      ) ,
+
+    /*output  reg     [19:0]      */.frame_size_0        ( frame_size_0        ) ,
+    /*output  reg     [19:0]      */.frame_size_1        ( frame_size_1        ) ,
+    /*output  reg     [19:0]      */.frame_size_2        ( frame_size_2        ) ,
+    /*output  reg     [19:0]      */.frame_size_3        ( frame_size_3        ) 
+);
 
 //===========================================================================
 // camera
@@ -549,6 +591,9 @@ end
 //===========================================================================
 // video_scale_near
 //===========================================================================
+wire [15:0] hdmi_in_data;
+assign hdmi_in_data = {r_in_r2[7:3], g_in_r2[7:2], b_in_r2[7:3]};
+
 wire [15:0] ch0_write_data;
 wire        ch0_write_en;
 
@@ -567,6 +612,30 @@ wire        ch4_write_en;
 wire [15:0] ch5_write_data;
 wire        ch5_write_en;
 
+wire [15:0] vout_dat_0  ;
+wire        vout_valid_0;
+
+wire [15:0] vout_dat_1  ;
+wire        vout_valid_1;
+
+wire [15:0] vout_dat_2  ;
+wire        vout_valid_2;
+
+wire [15:0] vout_dat_3  ;
+wire        vout_valid_3;
+
+assign ch0_write_data = (mode_data == 0) ? vout_dat_0 : cam_data_0;
+assign ch0_write_en   = (mode_data == 0) ? vout_valid_0 : cam_write_en_0;
+
+assign ch1_write_data = (mode_data == 0) ? vout_dat_1 : cam_data_1;
+assign ch1_write_en   = (mode_data == 0) ? vout_valid_1 : cam_write_en_1;
+
+assign ch2_write_data = (mode_data == 0) ? vout_dat_2 : cam_data_2;
+assign ch2_write_en   = (mode_data == 0) ? vout_valid_2 : cam_write_en_2;
+
+assign ch3_write_data = (mode_data == 0) ? vout_dat_3 : hdmi_in_data;
+assign ch3_write_en   = (mode_data == 0) ? vout_valid_3 : de_in_r2;
+
 video_scale_near #(
     .PIX_DATA_WIDTH ( 16 )
 ) video_scale_near_inst0 (
@@ -576,8 +645,8 @@ video_scale_near #(
     /*input   wire    [PIX_DATA_WIDTH-1:0]    */.vin_dat        ( cam_data_0     ) , //输入视频数据
     /*input   wire                            */.vin_valid      ( cam_write_en_0 ) , //输入视频数据有效
     /*output  wire                            */.vin_ready      () , //输入准备好
-    /*output  reg     [PIX_DATA_WIDTH-1:0]    */.vout_dat       ( ch0_write_data ) , //输出视频数据
-    /*output  reg                             */.vout_valid     ( ch0_write_en   ) , //输出视频数据有效
+    /*output  reg     [PIX_DATA_WIDTH-1:0]    */.vout_dat       ( vout_dat_0     ) , //输出视频数据
+    /*output  reg                             */.vout_valid     ( vout_valid_0   ) , //输出视频数据有效
     /*input   wire                            */.vout_ready     ( 1'b1           ) , //输出准备好
     /*input   wire    [15:0]                  */.vin_xres       ( 16'd1280       ) , //输入视频水平分辨率
     /*input   wire    [15:0]                  */.vin_yres       ( 16'd720        ) , //输入视频垂直分辨率
@@ -594,8 +663,8 @@ video_scale_near #(
     /*input   wire    [PIX_DATA_WIDTH-1:0]    */.vin_dat        ( cam_data_1     ) , //输入视频数据
     /*input   wire                            */.vin_valid      ( cam_write_en_1 ) , //输入视频数据有效
     /*output  wire                            */.vin_ready      () , //输入准备好
-    /*output  reg     [PIX_DATA_WIDTH-1:0]    */.vout_dat       ( ch1_write_data ) , //输出视频数据
-    /*output  reg                             */.vout_valid     ( ch1_write_en   ) , //输出视频数据有效
+    /*output  reg     [PIX_DATA_WIDTH-1:0]    */.vout_dat       ( vout_dat_1     ) , //输出视频数据
+    /*output  reg                             */.vout_valid     ( vout_valid_1   ) , //输出视频数据有效
     /*input   wire                            */.vout_ready     ( 1'b1           ) , //输出准备好
     /*input   wire    [15:0]                  */.vin_xres       ( 16'd1280       ) , //输入视频水平分辨率
     /*input   wire    [15:0]                  */.vin_yres       ( 16'd720        ) , //输入视频垂直分辨率
@@ -612,58 +681,32 @@ video_scale_near #(
     /*input   wire    [PIX_DATA_WIDTH-1:0]    */.vin_dat        ( cam_data_2     ) , //输入视频数据
     /*input   wire                            */.vin_valid      ( cam_write_en_2 ) , //输入视频数据有效
     /*output  wire                            */.vin_ready      () , //输入准备好
-    /*output  reg     [PIX_DATA_WIDTH-1:0]    */.vout_dat       ( ch2_write_data ) , //输出视频数据
-    /*output  reg                             */.vout_valid     ( ch2_write_en   ) , //输出视频数据有效
+    /*output  reg     [PIX_DATA_WIDTH-1:0]    */.vout_dat       ( vout_dat_2     ) , //输出视频数据
+    /*output  reg                             */.vout_valid     ( vout_valid_2   ) , //输出视频数据有效
     /*input   wire                            */.vout_ready     ( 1'b1           ) , //输出准备好
     /*input   wire    [15:0]                  */.vin_xres       ( 16'd1280       ) , //输入视频水平分辨率
     /*input   wire    [15:0]                  */.vin_yres       ( 16'd720        ) , //输入视频垂直分辨率
     /*input   wire    [15:0]                  */.vout_xres      ( 16'd640        ) , //输出视频水平分辨率
     /*input   wire    [15:0]                  */.vout_yres      ( 16'd360        )   //输出视频垂直分辨率
 );
-
-
-wire [15:0] hdmi_in_data;
-assign hdmi_in_data = {r_in[7:3], g_in[7:2], b_in[7:3]};
 
 video_scale_near #(
     .PIX_DATA_WIDTH ( 16 )
 ) video_scale_near_inst3 (
-    /*input   wire                            */.vin_clk        ( pixclk_in      ) , //输入视频时钟
+    /*input   wire                            */.vin_clk        ( pixclk_in_bufg ) , //输入视频时钟
     /*input   wire                            */.rst_n          ( rst_n          ) ,
-    /*input   wire                            */.frame_sync_n   ( ~vs_in         ) , //输入视频帧同步，低有效
+    /*input   wire                            */.frame_sync_n   ( ~vs_in_r2      ) , //输入视频帧同步，低有效
     /*input   wire    [PIX_DATA_WIDTH-1:0]    */.vin_dat        ( hdmi_in_data   ) , //输入视频数据
-    /*input   wire                            */.vin_valid      ( de_in          ) , //输入视频数据有效
+    /*input   wire                            */.vin_valid      ( de_in_r2       ) , //输入视频数据有效
     /*output  wire                            */.vin_ready      () , //输入准备好
-    /*output  reg     [PIX_DATA_WIDTH-1:0]    */.vout_dat       ( ch3_write_data ) , //输出视频数据
-    /*output  reg                             */.vout_valid     ( ch3_write_en   ) , //输出视频数据有效
+    /*output  reg     [PIX_DATA_WIDTH-1:0]    */.vout_dat       ( vout_dat_3     ) , //输出视频数据
+    /*output  reg                             */.vout_valid     ( vout_valid_3   ) , //输出视频数据有效
     /*input   wire                            */.vout_ready     ( 1'b1           ) , //输出准备好
     /*input   wire    [15:0]                  */.vin_xres       ( 16'd1280       ) , //输入视频水平分辨率
     /*input   wire    [15:0]                  */.vin_yres       ( 16'd720        ) , //输入视频垂直分辨率
     /*input   wire    [15:0]                  */.vout_xres      ( 16'd640        ) , //输出视频水平分辨率
     /*input   wire    [15:0]                  */.vout_yres      ( 16'd360        )   //输出视频垂直分辨率
 );
-
-// wire [15:0] bar_data;
-// assign bar_data = {bar_r[7:3], bar_g[7:2], bar_b[7:3]};
-
-// video_scale_near #(
-//     .PIX_DATA_WIDTH ( 16 )
-// ) video_scale_near_inst3 (
-//     /*input   wire                            */.vin_clk        ( pixclk_out     ) , //输入视频时钟
-//     /*input   wire                            */.rst_n          ( rst_n          ) ,
-//     /*input   wire                            */.frame_sync_n   ( ~bar_vs        ) , //输入视频帧同步，低有效
-//     /*input   wire    [PIX_DATA_WIDTH-1:0]    */.vin_dat        ( bar_data       ) , //输入视频数据
-//     /*input   wire                            */.vin_valid      ( bar_de         ) , //输入视频数据有效
-//     /*output  wire                            */.vin_ready      () , //输入准备好
-//     /*output  reg     [PIX_DATA_WIDTH-1:0]    */.vout_dat       ( ch3_write_data ) , //输出视频数据
-//     /*output  reg                             */.vout_valid     ( ch3_write_en   ) , //输出视频数据有效
-//     /*input   wire                            */.vout_ready     ( 1'b1           ) , //输出准备好
-//     /*input   wire    [15:0]                  */.vin_xres       ( 16'd1280       ) , //输入视频水平分辨率
-//     /*input   wire    [15:0]                  */.vin_yres       ( 16'd720        ) , //输入视频垂直分辨率
-//     /*input   wire    [15:0]                  */.vout_xres      ( 16'd640        ) , //输出视频水平分辨率
-//     /*input   wire    [15:0]                  */.vout_yres      ( 16'd360        )   //输出视频垂直分辨率
-// );
-
 
 //===========================================================================
 // cmos_write_req_gen
@@ -719,9 +762,9 @@ cmos_write_req_gen cmos_write_req_gen_inst1(
 );
 
 cmos_write_req_gen cmos_write_req_gen_inst2(
-    /*input   wire            */.clk             ( camera_clk_1         ) ,
+    /*input   wire            */.clk             ( camera_clk_2         ) ,
     /*input   wire            */.rst_n           ( rst_n                ) ,
-    /*input   wire            */.cmos_vsync      ( cam_vsync_1          ) ,
+    /*input   wire            */.cmos_vsync      ( cam_vsync_2          ) ,
     /*output  reg             */.write_req       ( ch2_write_req        ) ,
     /*input   wire            */.write_req_ack   ( ch2_write_req_ack    ) ,
     /*output  reg     [1:0]   */.write_addr_index( ch2_write_addr_index ) ,
@@ -729,9 +772,9 @@ cmos_write_req_gen cmos_write_req_gen_inst2(
 );
 
 cmos_write_req_gen cmos_write_req_gen_inst3(
-    /*input   wire            */.clk             ( pixclk_in            ) ,
+    /*input   wire            */.clk             ( pixclk_in_bufg       ) ,
     /*input   wire            */.rst_n           ( rst_n                ) ,
-    /*input   wire            */.cmos_vsync      ( vs_in                ) ,
+    /*input   wire            */.cmos_vsync      ( vs_in_r2             ) ,
     /*output  reg             */.write_req       ( ch3_write_req        ) ,
     /*input   wire            */.write_req_ack   ( ch3_write_req_ack    ) ,
     /*output  reg     [1:0]   */.write_addr_index( ch3_write_addr_index ) ,
@@ -825,114 +868,139 @@ wire    [15:0]  vout_data_2;
 wire    [15:0]  vout_data_3;
 
 video_rect_read_data video_rect_read_data_inst0 (
-    /*input   wire                        */.video_clk          ( pixclk_out       ) , // Video pixel clock
-    /*input   wire                        */.rst                ( ~rst_n           ) ,
-    /*input   wire    [11:0]              */.video_left_offset  ( 12'd0            ) ,
-    /*input   wire    [11:0]              */.video_top_offset   ( 12'd0            ) ,
-    /*input   wire    [11:0]              */.video_width        ( 12'd640          ) ,
-    /*input   wire    [11:0]              */.video_height       ( 12'd360          ) ,
-    /*output  reg                         */.read_req           ( ch0_read_req     ) , // Start reading a frame of data     
-    /*input   wire                        */.read_req_ack       ( ch0_read_req_ack ) , // Read request response
-    /*output  wire                        */.read_en            ( ch0_read_en      ) , // Read data enable
-    /*input   wire    [DATA_WIDTH - 1:0]  */.read_data          ( ch0_read_data    ) , // Read data
-    /*input   wire                        */.timing_hs          ( rd_hs            ) ,
-    /*input   wire                        */.timing_vs          ( rd_vs            ) ,
-    /*input   wire                        */.timing_de          ( rd_de            ) ,
-    /*input   wire    [DATA_WIDTH - 1:0]  */.timing_data        ( 16'd0            ) , 
+    /*input   wire                        */.video_clk          ( pixclk_out          ) , // Video pixel clock
+    /*input   wire                        */.rst                ( ~rst_n              ) ,
+    /*input   wire    [11:0]              */.video_left_offset  ( video_left_offset_0 ) ,
+    /*input   wire    [11:0]              */.video_top_offset   ( video_top_offset_0  ) ,
+    /*input   wire    [11:0]              */.video_width        ( video_width_0       ) ,
+    /*input   wire    [11:0]              */.video_height       ( video_height_0      ) ,
+    /*output  reg                         */.read_req           ( ch0_read_req        ) , // Start reading a frame of data     
+    /*input   wire                        */.read_req_ack       ( ch0_read_req_ack    ) , // Read request response
+    /*output  wire                        */.read_en            ( ch0_read_en         ) , // Read data enable
+    /*input   wire    [DATA_WIDTH - 1:0]  */.read_data          ( ch0_read_data       ) , // Read data
+    /*input   wire                        */.timing_hs          ( rd_hs               ) ,
+    /*input   wire                        */.timing_vs          ( rd_vs               ) ,
+    /*input   wire                        */.timing_de          ( rd_de               ) ,
+    /*input   wire    [DATA_WIDTH - 1:0]  */.timing_data        ( 16'd0               ) , 
     /*output  reg     [11:0]              */.x_cnt              () ,
     /*output  reg     [11:0]              */.y_cnt              () ,
-    /*output  wire                        */.hs                 ( hs_out_0         ) , // horizontal synchronization
-    /*output  wire                        */.vs                 ( vs_out_0         ) , // vertical synchronization
-    /*output  wire                        */.de                 ( de_out_0         ) , // video valid
-    /*output  wire    [DATA_WIDTH - 1:0]  */.vout_data          ( vout_data_0      )   // video data
+    /*output  wire                        */.hs                 ( hs_out_0            ) , // horizontal synchronization
+    /*output  wire                        */.vs                 ( vs_out_0            ) , // vertical synchronization
+    /*output  wire                        */.de                 ( de_out_0            ) , // video valid
+    /*output  wire    [DATA_WIDTH - 1:0]  */.vout_data          ( vout_data_0         )   // video data
 );
 
 video_rect_read_data video_rect_read_data_inst1 (
-    /*input   wire                        */.video_clk          ( pixclk_out       ) , // Video pixel clock
-    /*input   wire                        */.rst                ( ~rst_n           ) ,
-    /*input   wire    [11:0]              */.video_left_offset  ( 12'd640          ) ,
-    /*input   wire    [11:0]              */.video_top_offset   ( 12'd0            ) ,
-    /*input   wire    [11:0]              */.video_width        ( 12'd640          ) ,
-    /*input   wire    [11:0]              */.video_height       ( 12'd360          ) ,
-    /*output  reg                         */.read_req           ( ch1_read_req     ) , // Start reading a frame of data     
-    /*input   wire                        */.read_req_ack       ( ch1_read_req_ack ) , // Read request response
-    /*output  wire                        */.read_en            ( ch1_read_en      ) , // Read data enable
-    /*input   wire    [DATA_WIDTH - 1:0]  */.read_data          ( ch1_read_data    ) , // Read data
-    /*input   wire                        */.timing_hs          ( hs_out_0         ) ,
-    /*input   wire                        */.timing_vs          ( vs_out_0         ) ,
-    /*input   wire                        */.timing_de          ( de_out_0         ) ,
-    /*input   wire    [DATA_WIDTH - 1:0]  */.timing_data        ( vout_data_0      ) , 
+    /*input   wire                        */.video_clk          ( pixclk_out          ) , // Video pixel clock
+    /*input   wire                        */.rst                ( ~rst_n              ) ,
+    /*input   wire    [11:0]              */.video_left_offset  ( video_left_offset_1 ) ,
+    /*input   wire    [11:0]              */.video_top_offset   ( video_top_offset_1  ) ,
+    /*input   wire    [11:0]              */.video_width        ( video_width_1       ) ,
+    /*input   wire    [11:0]              */.video_height       ( video_height_1      ) ,
+    /*output  reg                         */.read_req           ( ch1_read_req        ) , // Start reading a frame of data     
+    /*input   wire                        */.read_req_ack       ( ch1_read_req_ack    ) , // Read request response
+    /*output  reg                         */.read_en            ( ch1_read_en         ) , // Read data enable
+    /*input   wire    [DATA_WIDTH - 1:0]  */.read_data          ( ch1_read_data       ) , // Read data
+    /*input   wire                        */.timing_hs          ( hs_out_0            ) ,
+    /*input   wire                        */.timing_vs          ( vs_out_0            ) ,
+    /*input   wire                        */.timing_de          ( de_out_0            ) ,
+    /*input   wire    [DATA_WIDTH - 1:0]  */.timing_data        ( vout_data_0         ) , 
     /*output  reg     [11:0]              */.x_cnt              () ,
     /*output  reg     [11:0]              */.y_cnt              () ,
-    /*output  wire                        */.hs                 ( hs_out_1         ) , // horizontal synchronization
-    /*output  wire                        */.vs                 ( vs_out_1         ) , // vertical synchronization
-    /*output  wire                        */.de                 ( de_out_1         ) , // video valid
-    /*output  wire    [DATA_WIDTH - 1:0]  */.vout_data          ( vout_data_1      )   // video data
+    /*output  wire                        */.hs                 ( hs_out_1            ) , // horizontal synchronization
+    /*output  wire                        */.vs                 ( vs_out_1            ) , // vertical synchronization
+    /*output  wire                        */.de                 ( de_out_1            ) , // video valid
+    /*output  wire    [DATA_WIDTH - 1:0]  */.vout_data          ( vout_data_1         )   // video data
 );
 
 video_rect_read_data video_rect_read_data_inst2 (
-    /*input   wire                        */.video_clk          ( pixclk_out       ) , // Video pixel clock
-    /*input   wire                        */.rst                ( ~rst_n           ) ,
-    /*input   wire    [11:0]              */.video_left_offset  ( 12'd0            ) ,
-    /*input   wire    [11:0]              */.video_top_offset   ( 12'd360          ) ,
-    /*input   wire    [11:0]              */.video_width        ( 12'd640          ) ,
-    /*input   wire    [11:0]              */.video_height       ( 12'd360          ) ,
-    /*output  reg                         */.read_req           ( ch2_read_req     ) , // Start reading a frame of data     
-    /*input   wire                        */.read_req_ack       ( ch2_read_req_ack ) , // Read request response
-    /*output  wire                        */.read_en            ( ch2_read_en      ) , // Read data enable
-    /*input   wire    [DATA_WIDTH - 1:0]  */.read_data          ( ch2_read_data    ) , // Read data
-    /*input   wire                        */.timing_hs          ( hs_out_1         ) ,
-    /*input   wire                        */.timing_vs          ( vs_out_1         ) ,
-    /*input   wire                        */.timing_de          ( de_out_1         ) ,
-    /*input   wire    [DATA_WIDTH - 1:0]  */.timing_data        ( vout_data_1      ) , 
+    /*input   wire                        */.video_clk          ( pixclk_out          ) , // Video pixel clock
+    /*input   wire                        */.rst                ( ~rst_n              ) ,
+    /*input   wire    [11:0]              */.video_left_offset  ( video_left_offset_2 ) ,
+    /*input   wire    [11:0]              */.video_top_offset   ( video_top_offset_2  ) ,
+    /*input   wire    [11:0]              */.video_width        ( video_width_2       ) ,
+    /*input   wire    [11:0]              */.video_height       ( video_height_2      ) ,
+    /*output  reg                         */.read_req           ( ch2_read_req        ) , // Start reading a frame of data     
+    /*input   wire                        */.read_req_ack       ( ch2_read_req_ack    ) , // Read request response
+    /*output  reg                         */.read_en            ( ch2_read_en         ) , // Read data enable
+    /*input   wire    [DATA_WIDTH - 1:0]  */.read_data          ( ch2_read_data       ) , // Read data
+    /*input   wire                        */.timing_hs          ( hs_out_1            ) ,
+    /*input   wire                        */.timing_vs          ( vs_out_1            ) ,
+    /*input   wire                        */.timing_de          ( de_out_1            ) ,
+    /*input   wire    [DATA_WIDTH - 1:0]  */.timing_data        ( vout_data_1         ) , 
     /*output  reg     [11:0]              */.x_cnt              () ,
     /*output  reg     [11:0]              */.y_cnt              () ,
-    /*output  wire                        */.hs                 ( hs_out_2         ) , // horizontal synchronization
-    /*output  wire                        */.vs                 ( vs_out_2         ) , // vertical synchronization
-    /*output  wire                        */.de                 ( de_out_2         ) , // video valid
-    /*output  wire    [DATA_WIDTH - 1:0]  */.vout_data          ( vout_data_2      )   // video data
+    /*output  wire                        */.hs                 ( hs_out_2            ) , // horizontal synchronization
+    /*output  wire                        */.vs                 ( vs_out_2            ) , // vertical synchronization
+    /*output  wire                        */.de                 ( de_out_2            ) , // video valid
+    /*output  wire    [DATA_WIDTH - 1:0]  */.vout_data          ( vout_data_2         )   // video data
 );
 
 video_rect_read_data video_rect_read_data_inst3 (
-    /*input   wire                        */.video_clk          ( pixclk_out       ) , // Video pixel clock
-    /*input   wire                        */.rst                ( ~rst_n           ) ,
-    /*input   wire    [11:0]              */.video_left_offset  ( 12'd640          ) ,
-    /*input   wire    [11:0]              */.video_top_offset   ( 12'd360          ) ,
-    /*input   wire    [11:0]              */.video_width        ( 12'd640          ) ,
-    /*input   wire    [11:0]              */.video_height       ( 12'd360          ) ,
-    /*output  reg                         */.read_req           ( ch3_read_req     ) , // Start reading a frame of data     
-    /*input   wire                        */.read_req_ack       ( ch3_read_req_ack ) , // Read request response
-    /*output  wire                        */.read_en            ( ch3_read_en      ) , // Read data enable
-    /*input   wire    [DATA_WIDTH - 1:0]  */.read_data          ( ch3_read_data    ) , // Read data
-    /*input   wire                        */.timing_hs          ( hs_out_2         ) ,
-    /*input   wire                        */.timing_vs          ( vs_out_2         ) ,
-    /*input   wire                        */.timing_de          ( de_out_2         ) ,
-    /*input   wire    [DATA_WIDTH - 1:0]  */.timing_data        ( vout_data_2      ) , 
+    /*input   wire                        */.video_clk          ( pixclk_out          ) , // Video pixel clock
+    /*input   wire                        */.rst                ( ~rst_n              ) ,
+    /*input   wire    [11:0]              */.video_left_offset  ( video_left_offset_3 ) ,
+    /*input   wire    [11:0]              */.video_top_offset   ( video_top_offset_3  ) ,
+    /*input   wire    [11:0]              */.video_width        ( video_width_3       ) ,
+    /*input   wire    [11:0]              */.video_height       ( video_height_3      ) ,
+    /*output  reg                         */.read_req           ( ch3_read_req        ) , // Start reading a frame of data     
+    /*input   wire                        */.read_req_ack       ( ch3_read_req_ack    ) , // Read request response
+    /*output  wire                        */.read_en            ( ch3_read_en         ) , // Read data enable
+    /*input   wire    [DATA_WIDTH - 1:0]  */.read_data          ( ch3_read_data       ) , // Read data
+    /*input   wire                        */.timing_hs          ( hs_out_2            ) ,
+    /*input   wire                        */.timing_vs          ( vs_out_2            ) ,
+    /*input   wire                        */.timing_de          ( de_out_2            ) ,
+    /*input   wire    [DATA_WIDTH - 1:0]  */.timing_data        ( vout_data_2         ) , 
     /*output  reg     [11:0]              */.x_cnt              () ,
     /*output  reg     [11:0]              */.y_cnt              () ,
-    /*output  wire                        */.hs                 ( hs_out_3         ) , // horizontal synchronization
-    /*output  wire                        */.vs                 ( vs_out_3         ) , // vertical synchronization
-    /*output  wire                        */.de                 ( de_out_3         ) , // video valid
-    /*output  wire    [DATA_WIDTH - 1:0]  */.vout_data          ( vout_data_3      )   // video data
+    /*output  wire                        */.hs                 ( hs_out_3            ) , // horizontal synchronization
+    /*output  wire                        */.vs                 ( vs_out_3            ) , // vertical synchronization
+    /*output  wire                        */.de                 ( de_out_3            ) , // video valid
+    /*output  wire    [DATA_WIDTH - 1:0]  */.vout_data          ( vout_data_3         )   // video data
 );
 //===========================================================================
 // isp
 //===========================================================================
-wire [15:0] y_data;
+wire        y_hs_in;
+wire        y_vs_in;
+wire        y_de_in;
+wire [15:0] y_data_in;
+wire [23:0] vout_data_3_ext;
+
 wire        y_hs_out;
 wire        y_vs_out;
 wire        y_de_out;
-wire [23:0] vout_data_3_ext;
+wire [15:0] y_data;
 
-assign vout_data_3_ext = {vout_data_3[15:11],3'b0,vout_data_3[10:5],2'b0,vout_data_3[4:0],3'b0};
+assign y_hs_in = (mode_data == 0) ? hs_out_3 :
+                 (mode_data == 1) ? hs_out_0 :
+                 (mode_data == 2) ? hs_out_1 :
+                 (mode_data == 3) ? hs_out_2 : hs_out_3;
+
+assign y_vs_in = (mode_data == 0) ? vs_out_3 :
+                 (mode_data == 1) ? vs_out_0 :
+                 (mode_data == 2) ? vs_out_1 :
+                 (mode_data == 3) ? vs_out_2 : vs_out_3;
+
+assign y_de_in = (mode_data == 0) ? de_out_3 :
+                 (mode_data == 1) ? de_out_0 :
+                 (mode_data == 2) ? de_out_1 :
+                 (mode_data == 3) ? de_out_2 : de_out_3;
+
+assign y_data_in = (mode_data == 0) ? vout_data_3 :
+                   (mode_data == 1) ? vout_data_0 :
+                   (mode_data == 2) ? vout_data_1 :
+                   (mode_data == 3) ? vout_data_2 : vout_data_3;
+
+assign vout_data_3_ext = {y_data_in[15:11],3'b0,y_data_in[10:5],2'b0,y_data_in[4:0],3'b0};
 
 image_top image_top_inst(
     /*input   wire            */.clk     ( pixclk_out      ) ,
     /*input   wire            */.rst_n   ( rst_n           ) ,
 
-    /*input   wire            */.hsync_i ( hs_out_3        ) ,//行信号
-    /*input   wire            */.vsync_i ( vs_out_3        ) ,//场信号
-    /*input   wire            */.de_i    ( de_out_3        ) ,
+    /*input   wire            */.hsync_i ( y_hs_in         ) ,//行信号
+    /*input   wire            */.vsync_i ( y_vs_in         ) ,//场信号
+    /*input   wire            */.de_i    ( y_de_in         ) ,
     /*input   wire    [23:0]  */.data_i  ( vout_data_3_ext ) ,//
 
     /*output  wire            */.hsync_o ( y_hs_out        ) ,
@@ -1063,6 +1131,54 @@ multi_target_detect multi_target_detect_inst(
 //===========================================================================
 // 颜色提取
 //===========================================================================
+//===========================================================================
+// 颜色提取专属坐标生成 (与 hs_out_3/vs_out_3 严格对齐)
+// 修复视频模式切换导致的字库OSD坐标漂移问题
+//===========================================================================
+reg [11:0] img_color_px;
+reg [11:0] img_color_py;
+reg vs_out_3_r1, vs_out_3_r2;
+
+always @(posedge pixclk_out or negedge rst_n) begin
+    if (!rst_n) begin
+        vs_out_3_r1 <= 1'b0;
+        vs_out_3_r2 <= 1'b0;
+    end else begin
+        vs_out_3_r1 <= vs_out_3;
+        vs_out_3_r2 <= vs_out_3_r1;
+    end
+end
+
+wire vs_out_3_edge = (~vs_out_3_r2 & vs_out_3_r1) || (vs_out_3_r2 & ~vs_out_3_r1); // 同步各种极性
+
+always @(posedge pixclk_out or negedge rst_n) begin
+    if (!rst_n) begin
+        img_color_px <= 12'b0;
+    end else if (vs_out_3_edge) begin
+        img_color_px <= 12'b0;
+    end else if (de_out_3) begin
+        if (img_color_px == 12'd1279)
+            img_color_px <= 12'b0;
+        else
+            img_color_px <= img_color_px + 1;
+    end else begin
+        img_color_px <= 12'b0;
+    end
+end
+
+always @(posedge pixclk_out or negedge rst_n) begin
+    if (!rst_n) begin
+        img_color_py <= 12'b0;
+    end else if (vs_out_3_edge) begin
+        img_color_py <= 12'b0;
+    end else if (img_color_px == 12'd1279 && de_out_3) begin
+        if (img_color_py == 12'd719)
+            img_color_py <= 12'b0;
+        else
+            img_color_py <= img_color_py + 1;
+    end
+end
+
 wire [23:0] color_data;
 wire        color_hs;
 wire        color_vs;
@@ -1089,8 +1205,8 @@ image_color image_color_inst(
     /*input   wire            */.key3_flag     ( btn_flag[2]      ) ,
     /*input   wire            */.key4_flag     ( btn_flag[3]      ) ,
         
-    /*input   wire    [10:0]  */.pixel_x       ( pixle_x          ) ,
-    /*input   wire    [10:0]  */.pixel_y       ( pixle_y          ) ,
+    /*input   wire    [10:0]  */.pixel_x       ( img_color_px     ) ,
+    /*input   wire    [10:0]  */.pixel_y       ( img_color_py     ) ,
     
     /*input   wire    [11:0]  */.frame_top     ( cur_color_top    ) ,
     /*input   wire    [11:0]  */.frame_bottom  ( cur_color_bottom ) ,
@@ -1233,16 +1349,23 @@ Top_ddr3 #(
     .BURST_BITS             ( 10   ) , //external memory user interface burst width
     .READ_DATA_BITS         ( 16   ) , //external memory user interface read data width
     .WRITE_DATA_BITS        ( 16   ) , //external memory user interface write data width
-    .BURST_SIZE             ( 16   ) , //external memory user interface burst size
-    .FRAME_SIZE0            ( 640 * 360  ) , // ch0 frame size
-    .FRAME_SIZE1            ( 640 * 360  ) , // ch1 frame size
-    .FRAME_SIZE2            ( 640 * 360  ) , // ch2 frame size
-    .FRAME_SIZE3            ( 640 * 360  ) , // ch3 frame size
-    .FRAME_SIZE4            ( 1280 * 720 ) , // ch4 frame size
-    .FRAME_SIZE5            ( 1280 * 720 )   // ch5 frame size
+    .BURST_SIZE             ( 16   )   //external memory user interface burst size
+    // .FRAME_SIZE0            ( frame_size_0  ) , // ch0 frame size
+    // .FRAME_SIZE1            ( frame_size_1  ) , // ch1 frame size
+    // .FRAME_SIZE2            ( frame_size_2  ) , // ch2 frame size
+    // .FRAME_SIZE3            ( frame_size_3  ) , // ch3 frame size
+    // .FRAME_SIZE4            ( 1280 * 720 ) , // ch4 frame size
+    // .FRAME_SIZE5            ( 1280 * 720 )   // ch5 frame size
 ) Top_ddr3_inst (
     /*input   wire            */.clk_200M             ( mig_clk ) ,
     /*input   wire            */.rst_n                ( rst_n   ) ,
+
+    /*input   wire [20:0]     */.FRAME_SIZE0          ( frame_size_0  ) , // ch0 frame size
+    /*input   wire [20:0]     */.FRAME_SIZE1          ( frame_size_1  ) , // ch1 frame size
+    /*input   wire [20:0]     */.FRAME_SIZE2          ( frame_size_2  ) , // ch2 frame size
+    /*input   wire [20:0]     */.FRAME_SIZE3          ( frame_size_3  ) , // ch3 frame size
+    /*input   wire [20:0]     */.FRAME_SIZE4          ( 1280 * 720    ) , // ch4 frame size
+    /*input   wire [20:0]     */.FRAME_SIZE5          ( 1280 * 720    ) , // ch5 frame size
     /*//ddr3*/
     /*output  wire [14:0]     */.ddr3_addr            ( ddr3_addr            ) ,
     /*output  wire [2:0]      */.ddr3_ba              ( ddr3_ba              ) ,
@@ -1306,7 +1429,7 @@ Top_ddr3 #(
     /*input   wire            */.ch2_read_en          ( ch2_read_en          ) ,
     /*output  wire    [15:0]  */.ch2_read_data        ( ch2_read_data        ) ,
     //channel 3 HDMI_IN
-    /*input   wire            */.ch3_write_clk        ( pixclk_in            ) ,
+    /*input   wire            */.ch3_write_clk        ( pixclk_in_bufg       ) ,
     /*input   wire            */.ch3_write_req        ( ch3_write_req        ) ,
     /*output  wire            */.ch3_write_req_ack    ( ch3_write_req_ack    ) ,
     /*output  wire            */.ch3_write_finish     () ,
