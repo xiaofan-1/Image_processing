@@ -349,7 +349,7 @@ reg        de_in_r1, de_in_r2;
 reg        vs_in_r1, vs_in_r2;
 reg        hs_in_r1, hs_in_r2;
 
-always @(posedge pixclk_in_bufg) begin
+always @(posedge pixclk_in) begin
     r_in_r1  <= r_in;
     g_in_r1  <= g_in;
     b_in_r1  <= b_in;
@@ -693,7 +693,7 @@ video_scale_near #(
 video_scale_near #(
     .PIX_DATA_WIDTH ( 16 )
 ) video_scale_near_inst3 (
-    /*input   wire                            */.vin_clk        ( pixclk_in_bufg ) , //输入视频时钟
+    /*input   wire                            */.vin_clk        ( pixclk_in      ) , //输入视频时钟
     /*input   wire                            */.rst_n          ( rst_n          ) ,
     /*input   wire                            */.frame_sync_n   ( ~vs_in_r2      ) , //输入视频帧同步，低有效
     /*input   wire    [PIX_DATA_WIDTH-1:0]    */.vin_dat        ( hdmi_in_data   ) , //输入视频数据
@@ -772,7 +772,7 @@ cmos_write_req_gen cmos_write_req_gen_inst2(
 );
 
 cmos_write_req_gen cmos_write_req_gen_inst3(
-    /*input   wire            */.clk             ( pixclk_in_bufg       ) ,
+    /*input   wire            */.clk             ( pixclk_in            ) ,
     /*input   wire            */.rst_n           ( rst_n                ) ,
     /*input   wire            */.cmos_vsync      ( vs_in_r2             ) ,
     /*output  reg             */.write_req       ( ch3_write_req        ) ,
@@ -1429,7 +1429,7 @@ Top_ddr3 #(
     /*input   wire            */.ch2_read_en          ( ch2_read_en          ) ,
     /*output  wire    [15:0]  */.ch2_read_data        ( ch2_read_data        ) ,
     //channel 3 HDMI_IN
-    /*input   wire            */.ch3_write_clk        ( pixclk_in_bufg       ) ,
+    /*input   wire            */.ch3_write_clk        ( pixclk_in            ) ,
     /*input   wire            */.ch3_write_req        ( ch3_write_req        ) ,
     /*output  wire            */.ch3_write_req_ack    ( ch3_write_req_ack    ) ,
     /*output  wire            */.ch3_write_finish     () ,
