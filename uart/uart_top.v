@@ -117,9 +117,6 @@ wire rx_done_pulse = rx_done && !rx_done_d1;
 
 //===========================================================================
 // 🌟 终极多目标防抖：峰值包络保持滤波器 (Peak Hold Envelope Filter) 🌟
-// 专门解决多目标 3-2-3-1 乱跳的问题！
-// 只要看到更大的数字(比如3)，立刻重置计时器。如果数字变小(比如变成2)，
-// 必须连续保持 0.5 秒都不变回 3，才承认数字真的减小了。
 //===========================================================================
 reg [3:0]  smooth_target_num;
 reg [23:0] target_hold_cnt;
@@ -132,8 +129,6 @@ always @(posedge clk or negedge rst_n) begin
     end else begin
         // 核心：只要底层读到的数字 大于等于 当前平滑输出的数字
         if (target_num >= smooth_target_num) begin
-            // 立刻更新为高分，并且把“掉线倒计时”清空！
-            // 这样 3-2-3-2 里面那个 3 就会无限刷新计时器，牢牢锁住最高峰。
             smooth_target_num <= target_num;
             target_hold_cnt   <= 24'd0;
         end 
@@ -266,20 +261,26 @@ always @(*) begin
         // 592-627: || FA04: Color Area    (0~4)    ||\r\n
         10'd592:rom_data="|"; 10'd593:rom_data="|"; 10'd594:rom_data=" "; 10'd595:rom_data="F"; 10'd596:rom_data="A"; 10'd597:rom_data="0"; 10'd598:rom_data="4"; 10'd599:rom_data=":"; 10'd600:rom_data=" "; 10'd601:rom_data="C";
         10'd602:rom_data="o"; 10'd603:rom_data="l"; 10'd604:rom_data="o"; 10'd605:rom_data="r"; 10'd606:rom_data=" "; 10'd607:rom_data="A"; 10'd608:rom_data="r"; 10'd609:rom_data="e"; 10'd610:rom_data="a"; 10'd611:rom_data=" ";
-        10'd612:rom_data=" "; 10'd613:rom_data=" "; 10'd614:rom_data=" "; 10'd615:rom_data="("; 10'd616:rom_data="0"; 10'd617:rom_data="~"; 10'd618:rom_data="4"; 10'd619:rom_data=")"; 10'd620:rom_data=" "; 10'd621:rom_data=" ";
+        10'd612:rom_data=" "; 10'd613:rom_data=" "; 10'd614:rom_data=" "; 10'd615:rom_data="("; 10'd616:rom_data="0"; 10'd617:rom_data="~"; 10'd618:rom_data="5"; 10'd619:rom_data=")"; 10'd620:rom_data=" "; 10'd621:rom_data=" ";
         10'd622:rom_data=" "; 10'd623:rom_data=" "; 10'd624:rom_data="|"; 10'd625:rom_data="|"; 10'd626:rom_data=8'h0D; 10'd627:rom_data=8'h0A;
 
-        // 628-663: || FA05: Toggle Monitor         ||\r\n
-        10'd628:rom_data="|"; 10'd629:rom_data="|"; 10'd630:rom_data=" "; 10'd631:rom_data="F"; 10'd632:rom_data="A"; 10'd633:rom_data="0"; 10'd634:rom_data="5"; 10'd635:rom_data=":"; 10'd636:rom_data=" "; 10'd637:rom_data="T";
-        10'd638:rom_data="o"; 10'd639:rom_data="g"; 10'd640:rom_data="g"; 10'd641:rom_data="l"; 10'd642:rom_data="e"; 10'd643:rom_data=" "; 10'd644:rom_data="M"; 10'd645:rom_data="o"; 10'd646:rom_data="n"; 10'd647:rom_data="i";
-        10'd648:rom_data="t"; 10'd649:rom_data="o"; 10'd650:rom_data="r"; 10'd651:rom_data=" "; 10'd652:rom_data=" "; 10'd653:rom_data=" "; 10'd654:rom_data=" "; 10'd655:rom_data=" "; 10'd656:rom_data=" "; 10'd657:rom_data=" ";
+        // 628-663: || FA05: Monitor SW    (0~1)    ||\r\n (修改这里：终端菜单变为0~1切换)
+        10'd628:rom_data="|"; 10'd629:rom_data="|"; 10'd630:rom_data=" "; 10'd631:rom_data="F"; 10'd632:rom_data="A"; 10'd633:rom_data="0"; 10'd634:rom_data="5"; 10'd635:rom_data=":"; 10'd636:rom_data=" "; 10'd637:rom_data="M";
+        10'd638:rom_data="o"; 10'd639:rom_data="n"; 10'd640:rom_data="i"; 10'd641:rom_data="t"; 10'd642:rom_data="o"; 10'd643:rom_data="r"; 10'd644:rom_data=" "; 10'd645:rom_data="S"; 10'd646:rom_data="W"; 10'd647:rom_data=" ";
+        10'd648:rom_data=" "; 10'd649:rom_data=" "; 10'd650:rom_data=" "; 10'd651:rom_data=" "; 10'd652:rom_data="("; 10'd653:rom_data="0"; 10'd654:rom_data="~"; 10'd655:rom_data="1"; 10'd656:rom_data=")"; 10'd657:rom_data=" ";
         10'd658:rom_data=" "; 10'd659:rom_data=" "; 10'd660:rom_data="|"; 10'd661:rom_data="|"; 10'd662:rom_data=8'h0D; 10'd663:rom_data=8'h0A;
 
-        // 664-699: ==================================\r\n (34个等号)
-        10'd664:rom_data="="; 10'd665:rom_data="="; 10'd666:rom_data="="; 10'd667:rom_data="="; 10'd668:rom_data="="; 10'd669:rom_data="="; 10'd670:rom_data="="; 10'd671:rom_data="="; 10'd672:rom_data="="; 10'd673:rom_data="=";
-        10'd674:rom_data="="; 10'd675:rom_data="="; 10'd676:rom_data="="; 10'd677:rom_data="="; 10'd678:rom_data="="; 10'd679:rom_data="="; 10'd680:rom_data="="; 10'd681:rom_data="="; 10'd682:rom_data="="; 10'd683:rom_data="=";
-        10'd684:rom_data="="; 10'd685:rom_data="="; 10'd686:rom_data="="; 10'd687:rom_data="="; 10'd688:rom_data="="; 10'd689:rom_data="="; 10'd690:rom_data="="; 10'd691:rom_data="="; 10'd692:rom_data="="; 10'd693:rom_data="=";
-        10'd694:rom_data="="; 10'd695:rom_data="="; 10'd696:rom_data="="; 10'd697:rom_data="="; 10'd698:rom_data=8'h0D; 10'd699:rom_data=8'h0A;
+        // 664-699: || FA00: Print Init Status      ||\r\n  (🌟新增的 FA00 菜单提示)
+        10'd664:rom_data="|"; 10'd665:rom_data="|"; 10'd666:rom_data=" "; 10'd667:rom_data="F"; 10'd668:rom_data="A"; 10'd669:rom_data="0"; 10'd670:rom_data="0"; 10'd671:rom_data=":"; 10'd672:rom_data=" "; 10'd673:rom_data="P";
+        10'd674:rom_data="r"; 10'd675:rom_data="i"; 10'd676:rom_data="n"; 10'd677:rom_data="t"; 10'd678:rom_data=" "; 10'd679:rom_data="I"; 10'd680:rom_data="n"; 10'd681:rom_data="i"; 10'd682:rom_data="t"; 10'd683:rom_data=" ";
+        10'd684:rom_data="S"; 10'd685:rom_data="t"; 10'd686:rom_data="a"; 10'd687:rom_data="t"; 10'd688:rom_data="u"; 10'd689:rom_data="s"; 10'd690:rom_data=" "; 10'd691:rom_data=" "; 10'd692:rom_data=" "; 10'd693:rom_data=" ";
+        10'd694:rom_data=" "; 10'd695:rom_data=" "; 10'd696:rom_data="|"; 10'd697:rom_data="|"; 10'd698:rom_data=8'h0D; 10'd699:rom_data=8'h0A;
+
+        // 700-735: ==================================\r\n (将底部的等号往后推移到这里)
+        10'd700:rom_data="="; 10'd701:rom_data="="; 10'd702:rom_data="="; 10'd703:rom_data="="; 10'd704:rom_data="="; 10'd705:rom_data="="; 10'd706:rom_data="="; 10'd707:rom_data="="; 10'd708:rom_data="="; 10'd709:rom_data="=";
+        10'd710:rom_data="="; 10'd711:rom_data="="; 10'd712:rom_data="="; 10'd713:rom_data="="; 10'd714:rom_data="="; 10'd715:rom_data="="; 10'd716:rom_data="="; 10'd717:rom_data="="; 10'd718:rom_data="="; 10'd719:rom_data="=";
+        10'd720:rom_data="="; 10'd721:rom_data="="; 10'd722:rom_data="="; 10'd723:rom_data="="; 10'd724:rom_data="="; 10'd725:rom_data="="; 10'd726:rom_data="="; 10'd727:rom_data="="; 10'd728:rom_data="="; 10'd729:rom_data="=";
+        10'd730:rom_data="="; 10'd731:rom_data="="; 10'd732:rom_data="="; 10'd733:rom_data="="; 10'd734:rom_data=8'h0D; 10'd735:rom_data=8'h0A;
 
         default: rom_data = 8'h20;
     endcase
@@ -411,7 +412,7 @@ always @(posedge clk or negedge rst_n) begin
         case(cli_state)
             S_POWER_DELAY: begin
                 if(power_delay_cnt == 24'd2_700_000) begin
-                    cli_state <= S_BOOT;
+                    cli_state <= S_IDLE; // 🌟修改：上电延迟结束后，直接进入待机，不再强制触发 S_BOOT
                 end else begin
                     power_delay_cnt <= power_delay_cnt + 1'b1;
                 end
@@ -445,7 +446,7 @@ always @(posedge clk or negedge rst_n) begin
             
             S_WAIT_ETH_D:  if(print_done) cli_state <= S_PRINT_HELP;
 
-            S_PRINT_HELP:  begin print_start <= 10'd410; print_end <= 10'd699; print_req <= 1'b1; cli_state <= S_WAIT_HELP_D; end
+            S_PRINT_HELP:  begin print_start <= 10'd410; print_end <= 10'd735; print_req <= 1'b1; cli_state <= S_WAIT_HELP_D; end // 🌟修改：由于加入了 FA00 菜单，结束地址延长到 735
             S_WAIT_HELP_D: if(print_done) cli_state <= S_IDLE; 
 
             // --- 待机与连续输入统一处理池 ---
@@ -454,10 +455,10 @@ always @(posedge clk or negedge rst_n) begin
                     auto_print_cnt <= 24'd0; // 如果收到你的按键指令，立刻重置心跳计时器
                     rx_cmd_reg     <= {rx_cmd_reg[23:0], rx_data};
                     
-                    if({rx_cmd_reg[23:0], rx_data} == 32'h46_41_30_31) begin 
-                        active_cmd_id <= 3'd1; monitor_en <= 1'b0; rx_cmd_reg <= 0; cli_state <= S_ASK_VAL; 
+                    if({rx_cmd_reg[23:0], rx_data} == 32'h46_41_30_30) begin  // 🌟新增：收到 FA00 后，主动跳到 S_BOOT 发起全套打印！
+                        active_cmd_id <= 3'd0; monitor_en <= 1'b0; rx_cmd_reg <= 0; cli_state <= S_BOOT; 
                     end
-                    else if({rx_cmd_reg[23:0], rx_data} == 32'h46_41_30_32) begin 
+                    else if({rx_cmd_reg[23:0], rx_data} == 32'h46_41_30_31) begin 
                         active_cmd_id <= 3'd2; monitor_en <= 1'b0; rx_cmd_reg <= 0; cli_state <= S_ASK_VAL; 
                     end
                     else if({rx_cmd_reg[23:0], rx_data} == 32'h46_41_30_33) begin 
@@ -466,9 +467,9 @@ always @(posedge clk or negedge rst_n) begin
                     else if({rx_cmd_reg[23:0], rx_data} == 32'h46_41_30_34) begin 
                         active_cmd_id <= 3'd4; monitor_en <= 1'b0; rx_cmd_reg <= 0; cli_state <= S_ASK_VAL; 
                     end
+                    // 🌟 修改处：进入 FA05 后，不再是一次性切换状态，而是进入提示输入值的环节 S_ASK_VAL
                     else if({rx_cmd_reg[23:0], rx_data} == 32'h46_41_30_35) begin 
-                        monitor_en <= ~monitor_en; active_cmd_id <= 3'd0; rx_cmd_reg <= 0; 
-                        input_value <= 16'd0; input_ascii_reg <= 32'h30_30_30_30; 
+                        active_cmd_id <= 3'd5; monitor_en <= 1'b0; rx_cmd_reg <= 0; cli_state <= S_ASK_VAL; 
                     end
                     else if({rx_cmd_reg[23:8]} == 16'h46_41) begin
                         active_cmd_id <= 3'd0; rx_cmd_reg <= 0; input_value <= 16'd0; 
@@ -500,13 +501,11 @@ always @(posedge clk or negedge rst_n) begin
                 
                 // 🌟 连续心跳式打印逻辑！(基于峰值保持后的平滑数值 smooth_target_num)
                 else if((print_state == 3'd0) && monitor_en) begin
-                    // 情况1：真的出现了数值变动，立刻刷新！
                     if (smooth_target_num != last_target_num) begin
                         last_target_num <= smooth_target_num;
                         auto_print_cnt  <= 24'd0;
                         cli_state       <= S_PRINT_TGT;
                     end 
-                    // 情况2：数值没变，但是为了让你看到连续数据，每 0.25 秒重新发一次！
                     else if (auto_print_cnt >= 24'd6_750_000) begin 
                         auto_print_cnt  <= 24'd0;
                         cli_state       <= S_PRINT_TGT;
@@ -540,15 +539,21 @@ always @(posedge clk or negedge rst_n) begin
                 else if(active_cmd_id == 3'd3 && input_value > 16'd5) begin
                     cli_state <= S_PRINT_ERR;
                 end 
-                else if(active_cmd_id == 3'd4 && input_value > 16'd4) begin
+                else if(active_cmd_id == 3'd4 && input_value > 16'd5) begin
                     cli_state <= S_PRINT_ERR;
                 end 
+                // 🌟 修改处：新增对 FA05 输入范围的校验（只能输入 0 或 1）
+                else if(active_cmd_id == 3'd5 && input_value > 16'd1) begin
+                    cli_state <= S_PRINT_ERR;
+                end
                 else begin
                     case(active_cmd_id)
                         3'd1: diff_value     <= input_value[7:0];
                         3'd2: min_dist       <= input_value[11:0];
                         3'd3: move_area_sel  <= input_value[7:0];
                         3'd4: color_area_sel <= input_value[7:0];
+                        // 🌟 修改处：如果是 FA05，输入 0 (开始接收) -> monitor_en 置 1，输入 1 (停止接收) -> 置 0
+                        3'd5: monitor_en     <= (input_value == 16'd0) ? 1'b1 : 1'b0; 
                     endcase
                     cli_state <= S_PRINT_OK;
                 end
@@ -566,7 +571,8 @@ always @(posedge clk or negedge rst_n) begin
             end
             
             S_PRINT_OK: begin 
-                if(active_cmd_id == 3'd1 || active_cmd_id == 3'd2) begin
+                // 🌟 修改处：让 FA05 也使用和前面相同的 "[Success]" 确认打印
+                if(active_cmd_id == 3'd1 || active_cmd_id == 3'd2 || active_cmd_id == 3'd5) begin
                     print_start <= 10'd320; print_end <= 10'd352; 
                 end else begin
                     print_start <= 10'd360; print_end <= 10'd384; 
@@ -575,6 +581,7 @@ always @(posedge clk or negedge rst_n) begin
             end
             
             S_WAIT_OK_PRINT: begin
+                // 打印完成后回到 IDLE，但 active_cmd_id 没有清空，所以可以在 FA05 模式下一直连续输入！
                 if(print_done) begin
                     input_value <= 16'd0; input_ascii_reg <= 32'h30_30_30_30; cli_state <= S_IDLE; 
                 end
@@ -632,6 +639,7 @@ always @(posedge clk or negedge rst_n) begin
             8'd2: begin cur_color_top <= 12'd5;   cur_color_bottom <= 12'd354; cur_color_left <= 12'd645; cur_color_right <= 12'd1274; end
             8'd3: begin cur_color_top <= 12'd365; cur_color_bottom <= 12'd714; cur_color_left <= 12'd5;   cur_color_right <= 12'd634;  end
             8'd4: begin cur_color_top <= 12'd365; cur_color_bottom <= 12'd714; cur_color_left <= 12'd645; cur_color_right <= 12'd1274; end
+            8'd5: begin cur_color_top <= 12'd5;   cur_color_bottom <= 12'd714; cur_color_left <= 12'd5;   cur_color_right <= 12'd1274; end
             default: begin cur_color_top <= 12'd5; cur_color_bottom <= 12'd354; cur_color_left <= 12'd5;   cur_color_right <= 12'd634;  end
         endcase
     end
