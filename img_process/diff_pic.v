@@ -54,7 +54,7 @@ always @(posedge sys_clk or negedge sys_rst_n) begin
     if(sys_rst_n == 1'b0)
         read_req <= 1'b0;
     // 使用打过拍子的同步信号触发
-    else if(vsync_reg_pl[1] == 1'b0 & vsync_reg_pl[0] == 1'b1) //rising edge
+    else if(vsync_reg_pl[1] == 1'b1 & vsync_reg_pl[0] == 1'b0)
         read_req <= 1'b1;
     else if(read_req_ack == 1'b1)
         read_req <= 1'b0;

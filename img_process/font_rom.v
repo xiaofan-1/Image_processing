@@ -7,6 +7,7 @@ module font_rom (
     input   wire    [11:0]  pixel_x         ,
     input   wire    [11:0]  pixel_y         ,
     input   wire            de              ,
+    input   wire            vsync           ,  // 帧同步信号
     input   wire            key             ,
     output  reg     [2:0]   color_select    ,
     output  reg     [23:0]  data_o          
@@ -19,23 +20,20 @@ localparam
     BLUE    = 3'd3,
     YELLOW  = 3'd4;
 
-(* MARK_DEBUG="true" *)wire	[23:0]	font_red_data;
+wire	[23:0]	font_red_data;
 wire	[23:0]	font_green_data;
 wire	[23:0]	font_blue_data;
 wire	[23:0]	font_yellow_data;
 
-(* MARK_DEBUG="true" *)reg 	[11:0]	addra;
 reg		[2:0]	curr_state;
 reg		[2:0]	next_state;
 
-always @(posedge clk or negedge rst_n) begin
-    if(!rst_n)
-        addra <= 0;
-    else if(addra == 2500 - 1)
-        addra <= 0;
-    else if(addra < 2500  && pixel_x < 50  && pixel_y < 50 && de)
-        addra <= addra + 1;
-end
+// 直接用坐标计算 ROM 地址，不依赖计数器
+// addra = pixel_y * 50 + pixel_x
+// 50 = 32 + 16 + 2，用移位加法实现
+wire [11:0] addra;
+wire [11:0] font_y_offset = {pixel_y[5:0], 5'b0} + {1'b0, pixel_y[5:0], 4'b0} + {5'b0, pixel_y[5:0], 1'b0}; // pixel_y * 50
+assign addra = font_y_offset + pixel_x;
 
 always @(posedge clk or negedge rst_n) begin
     if(!rst_n)

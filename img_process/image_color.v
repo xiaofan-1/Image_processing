@@ -21,10 +21,10 @@ module image_color(
     input   wire    [11:0]  frame_left    ,
     input   wire    [11:0]  frame_right   ,
 
-    (* MARK_DEBUG="true" *)output  reg     [11:0]  x_min_r       ,
-    (* MARK_DEBUG="true" *)output  reg     [11:0]  x_max_r       ,
-    (* MARK_DEBUG="true" *)output  reg     [11:0]  y_min_r       ,
-    (* MARK_DEBUG="true" *)output  reg     [11:0]  y_max_r       ,
+    output  reg     [11:0]  x_min_r       ,
+    output  reg     [11:0]  x_max_r       ,
+    output  reg     [11:0]  y_min_r       ,
+    output  reg     [11:0]  y_max_r       ,
     
     (* MARK_DEBUG="true" *)output  wire [11:0] pixle_x_reg   ,
     (* MARK_DEBUG="true" *)output  wire [11:0] pixle_y_reg   ,
@@ -45,8 +45,8 @@ wire        	vs_reg;
 
 // 【修改点】：扩大寄存器阵列深度，以容纳新增的 17 拍延迟
 reg [23:0] rgb_data_pipe [63:0];
-reg [11:0] pixel_x_pipe [35:0];
-reg [11:0] pixel_y_pipe [35:0];
+reg [11:0] pixel_x_pipe [63:0];
+(* dont_touch="true" *)reg [11:0] pixel_y_pipe [63:0];
 reg [7:0]  data_color_pipe [63:0];
 reg        de_reg_pipe [63:0];
 
@@ -88,7 +88,7 @@ integer j;
 
 always @(posedge clk or negedge rst_n) begin
     if(!rst_n) begin
-        for (j = 0; j < 36; j = j + 1) begin
+        for (j = 0; j < 64; j = j + 1) begin
             pixel_x_pipe[j] <= 12'h0;
             pixel_y_pipe[j] <= 12'h0;
         end
@@ -96,7 +96,7 @@ always @(posedge clk or negedge rst_n) begin
     else begin
         pixel_x_pipe[0] <= pixel_x;
         pixel_y_pipe[0] <= pixel_y;
-        for (j = 1; j < 36; j = j + 1) begin
+        for (j = 1; j < 64; j = j + 1) begin
             pixel_x_pipe[j] <= pixel_x_pipe[j-1];
             pixel_y_pipe[j] <= pixel_y_pipe[j-1];
         end
@@ -106,22 +106,24 @@ end
 (* MARK_DEBUG="true" *)wire [23:0] rgb_data_reg;
 
 (* MARK_DEBUG="true" *)wire [11:0] pixel_x_reg_font;
-(* MARK_DEBUG="true" *)wire [11:0] pixel_y_reg_font;
+(* MARK_DEBUG="true", dont_touch="true" *)wire [11:0] pixel_y_reg_font;
 (* MARK_DEBUG="true" *)wire [7:0]  data_color_reg;
 (* MARK_DEBUG="true" *)wire        de_reg_font;
 
-// 【修改点】：所有跟外部同步的 Bypass 信号，Tap 点全部增加 17 拍
-assign rgb_data_reg = rgb_data_pipe[44];  // 27 + 17 = 44
-assign pixle_x_reg = pixel_x_pipe[19];    // 2 + 17 = 19
-assign pixle_y_reg = pixel_y_pipe[19];    // 2 + 17 = 19
+// 【修复点】：由于 pixel_x 从 Top.sv 引入时已经与 data_i 严格对齐，
+// 因此它的延迟深度必须与 rgb_data_reg(44拍) 保持完全一致，不再需要错开 25 拍。
+assign rgb_data_reg = rgb_data_pipe[44];  
+assign pixle_x_reg = pixel_x_pipe[44];    
+assign pixle_y_reg = pixel_y_pipe[44];    
 
 // data_color 信号已经内置了延迟，保持不变！
 assign data_color_reg = data_color_pipe[13]; 
 assign de_reg_font = de_reg_pipe[13];
 
-// Font ROM 的坐标输入也需要平移对齐
-assign pixel_x_reg_font = pixel_x_pipe[17]; // 0 + 17 = 17
-assign pixel_y_reg_font = pixel_y_pipe[17]; // 0 + 17 = 17
+// Font ROM 有大约 2 拍的读取延迟 (ROM流水线), 
+// 为了让 ROM 的输出在第 44 拍时可用，我们需要在第 44-2=42 拍将坐标送入 ROM。
+assign pixel_x_reg_font = pixel_x_pipe[42]; 
+assign pixel_y_reg_font = pixel_y_pipe[42]; 
 
 assign hsync_o = hsync_i_reg_pipe[45]; // 28 + 17 = 45
 assign vsync_o = vsync_i_reg_pipe[45]; // 28 + 17 = 45
@@ -273,6 +275,7 @@ font_rom font_rom_u(
     /*input		wire 	[10:0]  */.pixel_x		(pixel_x_reg_font		),
     /*input		wire 	[10:0]	*/.pixel_y		(pixel_y_reg_font		),
     /*input		wire			*/.de			(de_reg_font			),
+    /*input		wire			*/.vsync		(vsync_i				),  // 帧同步
     /*input		wire			*/.key			(key2_flag				),
     /*output	wire	[2:0]	*/.color_select	(color_threshold_select	),
     /*output 	reg  	[23:0] 	*/.data_o		(font_rom_data			)	
